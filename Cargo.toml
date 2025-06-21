@@ -1,0 +1,101 @@
+[package]
+authors = ["Kaushik Chakraborty <git@kaushikc.org>", "Shaun Pai <shauna.pai@gmail.com>"]
+name = "kiteticker-async-manager"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/shaunpai/kiteticker-async-manager"
+documentation = "https://docs.rs/kiteticker-async-manager/latest/kiteticker-async-manager/"
+description = """
+High-performance async WebSocket client for Kite Connect API with multi-connection support,
+dynamic subscription management, and optimized data processing.
+"""
+categories = ["asynchronous", "finance", "api-bindings", "network-programming"]
+keywords = ["kite", "zerodha", "websocket", "trading", "real-time", "async", "multi-connection"]
+
+[lib]
+name = "kiteticker_async_manager"
+path = "src/lib.rs"
+doc = true
+
+# Basic Examples - Simple, focused examples for getting started
+[[example]]
+name = "single_connection"
+path = "examples/basic/single_connection.rs"
+doc = true
+
+[[example]]
+name = "portfolio_monitor"
+path = "examples/basic/portfolio_monitor.rs"
+doc = true
+
+[[example]]
+name = "runtime_subscription_example"
+path = "examples/basic/runtime_subscription_example.rs"
+doc = true
+
+# Advanced Examples - Complex scenarios and advanced features
+[[example]]
+name = "dynamic_subscription_demo"
+path = "examples/advanced/dynamic_subscription_demo.rs"
+doc = true
+
+[[example]]
+name = "manager_demo"
+path = "examples/advanced/manager_demo.rs"
+doc = true
+
+# Performance Examples - Performance optimization and benchmarking
+[[example]]
+name = "performance_demo"
+path = "examples/performance/performance_demo.rs"
+doc = true
+
+[[example]]
+name = "message_flow_test"
+path = "examples/performance/message_flow_test.rs"
+doc = true
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_repr = "0.1"
+tokio = { version = "1.28.2", features = ["full"] }
+tokio-tungstenite = { version = "0.20.1", features = ["native-tls"] }
+futures-util = { version = "0.3.28", features = ["sink"] }
+tokio-stream = { version = "0.1.14", features = ["full"] }
+url = "2.4.1"
+serde_with = "3.4.0"
+chrono = { version = "0.4.31", features = ["serde"] }
+byteorder = "1.5"
+log = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+chrono = { version = "0.4.31", features = ["serde"] }
+base64 = "0.21.5"
+sha2 = "0.10"
+hex = "0.4.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+env_logger = "0.11"
+
+# Additional Performance Examples
+[[example]]
+name = "market_scanner"
+path = "examples/performance/market_scanner.rs"
+doc = true
+
+[[example]]
+name = "load_test"
+path = "examples/performance/load_test.rs"
+doc = true
+
+[[example]]
+name = "high_frequency"
+path = "examples/performance/high_frequency.rs"
+doc = true
+
+[[bench]]
+name = "websocket_performance"
+harness = false
