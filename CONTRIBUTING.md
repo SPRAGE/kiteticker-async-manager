@@ -5,12 +5,12 @@ Thank you for your interest in contributing to KiteTicker Async! This guide will
 ## 🎯 Ways to Contribute
 
 ### 🐛 Bug Reports
-- Report bugs through [GitHub Issues](https://github.com/shaunpai/kiteticker-async-manager/issues)
+- Report bugs through [GitHub Issues](https://github.com/SPRAGE/kiteticker-async-manager/issues)
 - Include minimal reproduction code
 - Specify environment details (OS, Rust version, etc.)
 
 ### 💡 Feature Requests  
-- Suggest new features via [GitHub Discussions](https://github.com/shaunpai/kiteticker-async-manager/discussions)
+- Suggest new features via [GitHub Discussions](https://github.com/SPRAGE/kiteticker-async-manager/discussions)
 - Explain the use case and expected behavior
 - Consider the impact on performance and API design
 

@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/shaunpai/kiteticker-async-manager"
+repository = "https://github.com/SPRAGE/kiteticker-async-manager"
 documentation = "https://docs.rs/kiteticker-async-manager/latest/kiteticker-async-manager/"
 description = """
 High-performance async WebSocket client for Kite Connect API with multi-connection support,

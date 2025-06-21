@@ -9,7 +9,7 @@ High-performance async WebSocket client for the [Kite Connect API](https://kite.
 [crates-badge]: https://img.shields.io/crates/v/kiteticker-async-manager.svg
 [crates-url]: https://crates.io/crates/kiteticker-async-manager
 [apache-2-0-badge]: https://img.shields.io/badge/license-apache-blue.svg
-[apache-2-0-url]: https://github.com/shaunpai/kiteticker-async-manager/blob/master/LICENSE
+[apache-2-0-url]: https://github.com/SPRAGE/kiteticker-async-manager/blob/master/LICENSE
 [docs-badge]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-url]: https://docs.rs/kiteticker-async-manager/latest/kiteticker-async-manager
 
@@ -216,7 +216,7 @@ cargo install just  # Task runner
 ### Building
 ```bash
 # Clone and build
-git clone https://github.com/shaunpai/kiteticker-async-manager.git
+git clone https://github.com/SPRAGE/kiteticker-async-manager.git
 cd kiteticker-async-manager
 just build
 ```
@@ -275,7 +275,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 - **[Kite Connect API Documentation](https://kite.trade/docs/connect/v3/websocket/)**
 - **[Crates.io](https://crates.io/crates/kiteticker-async-manager)**
 - **[Documentation](https://docs.rs/kiteticker-async-manager/)**
-- **[GitHub Repository](https://github.com/shaunpai/kiteticker-async-manager)**
+- **[GitHub Repository](https://github.com/SPRAGE/kiteticker-async-manager)**
 
 ---
 
