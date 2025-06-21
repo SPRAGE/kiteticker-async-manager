@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-06-21
+
+### Removed
+- **Test Suite**: Removed comprehensive test infrastructure to streamline the codebase
+  - Deleted entire `tests/` directory with unit and integration tests
+  - Removed test-related example files (`ticker_message_mock.rs`, `load_test.rs`, `message_flow_test.rs`)
+  - Cleaned up test-related dev-dependencies from `Cargo.toml`
+  - Removed inline test modules from source files
+  - Updated documentation to remove test-related sections
+
+### Changed
+- **Documentation**: Updated contributing guidelines and project documentation
+  - Removed testing requirements and benchmark sections from `CONTRIBUTING.md`
+  - Updated `README.md` to focus on examples and usage patterns
+  - Cleaned up example documentation and removed test references
+- **Build System**: Simplified `justfile` by removing test-related commands
+- **Project Structure**: Streamlined codebase to focus on core library functionality
+
 ## [0.1.0] - 2025-06-21
 
 ### Added
@@ -44,8 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Contributing guidelines
 
 ### Development
-- Comprehensive test suite with unit and integration tests
-- Benchmark suite for performance testing
 - Development tasks with `just` task runner
 - CI-ready project structure
 - Nix flake for reproducible development environment

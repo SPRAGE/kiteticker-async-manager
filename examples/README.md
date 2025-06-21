@@ -26,9 +26,7 @@ Complex scenarios and advanced features:
 Performance optimization and benchmarking:
 
 - **[performance_demo.rs](performance/performance_demo.rs)** - Performance testing and metrics
-- **[message_flow_test.rs](performance/message_flow_test.rs)** - Message flow analysis
 - **[high_frequency.rs](performance/high_frequency.rs)** - High-frequency data processing
-- **[load_test.rs](performance/load_test.rs)** - Stress testing with maximum symbols
 
 ## 🚀 Running Examples
 
@@ -74,9 +72,6 @@ cargo run --example advanced/market_scanner
 ```bash
 # Performance benchmarking
 cargo run --example performance/performance_demo
-
-# Message flow analysis
-cargo run --example performance/message_flow_test
 
 # High-frequency processing
 cargo run --example performance/high_frequency

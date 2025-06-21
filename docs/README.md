@@ -87,12 +87,6 @@ Practical code examples organized by complexity:
 - Performance benchmarking code
 - Real-world usage patterns
 
-### Testing & Validation
-- Comprehensive test suite
-- Performance benchmarks
-- Integration examples
-- Error scenario handling
-
 ## 🔗 External Resources
 
 - **[Kite Connect API Docs](https://kite.trade/docs/connect/v3/websocket/)**

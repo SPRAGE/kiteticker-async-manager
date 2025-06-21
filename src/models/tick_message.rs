@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use crate::Tick;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 ///
 /// Parsed quote packet
 ///

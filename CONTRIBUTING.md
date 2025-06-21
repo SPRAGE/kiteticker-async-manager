@@ -22,7 +22,7 @@ Thank you for your interest in contributing to KiteTicker Async! This guide will
 ### 🔧 Code Contributions
 - Fix bugs and implement features
 - Improve performance and reliability
-- Add comprehensive tests
+- Enhance documentation and examples
 
 ## 🚀 Getting Started
 
@@ -53,7 +53,7 @@ Thank you for your interest in contributing to KiteTicker Async! This guide will
    # Copy example environment file
    cp .env.example .env
    
-   # Add your API credentials (for testing)
+   # Add your API credentials (for running examples)
    export KITE_API_KEY=your_api_key
    export KITE_ACCESS_TOKEN=your_access_token
    ```
@@ -63,9 +63,9 @@ Thank you for your interest in contributing to KiteTicker Async! This guide will
    just build
    ```
 
-4. **Run tests to verify setup**
+4. **Verify setup by building the project**
    ```bash
-   just test
+   just build
    ```
 
 ### Development Tasks
@@ -75,12 +75,10 @@ Use `just` to run common development tasks:
 ```bash
 just --list                    # Show all available tasks
 just build                     # Build the project
-just test                      # Run all tests
 just check                     # Check formatting and lints
 just fmt                       # Format code
 just lint                      # Run clippy lints
 just doc                       # Generate documentation
-just bench                     # Run benchmarks
 ```
 
 ## 📋 Development Guidelines
@@ -89,7 +87,7 @@ just bench                     # Run benchmarks
 
 - **Follow Rust conventions** - Use `rustfmt` and `clippy`
 - **Write clear documentation** - All public APIs must be documented
-- **Add comprehensive tests** - Unit tests and integration tests
+- **Add comprehensive examples** - Demonstrate functionality with working examples
 - **Handle errors properly** - Use `Result` types appropriately
 
 ### Performance Considerations
@@ -99,15 +97,6 @@ This is a high-performance library, so consider:
 - **CPU efficiency** - Optimize hot paths
 - **Network efficiency** - Minimize WebSocket overhead
 - **Async best practices** - Use appropriate async patterns
-
-### Testing Requirements
-
-All contributions must include:
-
-1. **Unit tests** for new functionality
-2. **Integration tests** for complex features  
-3. **Documentation tests** for examples
-4. **Benchmark tests** for performance-critical code
 
 ### API Design Principles
 
@@ -129,24 +118,21 @@ git checkout -b fix/issue-description
 ### 2. Make Changes
 
 - Write your code following the guidelines above
-- Add tests for new functionality
+- Add examples for new functionality
 - Update documentation as needed
-- Ensure all tests pass
+- Ensure the project builds correctly
 
-### 3. Test Your Changes
+### 3. Verify Your Changes
 
 ```bash
-# Run the full test suite
-just test
+# Build the project
+just build
 
-# Run specific tests
-cargo test test_name
-
-# Test with real API (if applicable)
+# Run examples to verify functionality
 cargo run --example basic/single_connection
 
-# Run benchmarks (for performance changes)
-just bench
+# Check code formatting and lints
+just check
 ```
 
 ### 4. Check Code Quality
@@ -169,7 +155,7 @@ git add .
 git commit -m "feat: add dynamic subscription batching
 
 - Implement batch operations for better performance
-- Add tests for batch subscription/unsubscription
+- Add examples for batch subscription/unsubscription
 - Update documentation with batch examples"
 ```
 
@@ -178,7 +164,6 @@ git commit -m "feat: add dynamic subscription batching
 - `fix:` - Bug fixes
 - `docs:` - Documentation changes
 - `perf:` - Performance improvements
-- `test:` - Test additions/changes
 - `refactor:` - Code refactoring
 
 ### 6. Submit Pull Request
@@ -188,56 +173,6 @@ git commit -m "feat: add dynamic subscription batching
 3. Provide a clear description of changes
 4. Link to relevant issues
 5. Wait for review and address feedback
-
-## 🧪 Testing Guidelines
-
-### Unit Tests
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_symbol_subscription() {
-        // Test implementation
-    }
-}
-```
-
-### Integration Tests
-
-Place integration tests in the `tests/` directory:
-
-```rust
-// tests/integration_test.rs
-use kiteticker_async::{KiteTickerManager, KiteManagerConfig};
-
-#[tokio::test]
-async fn test_manager_full_workflow() {
-    // Full workflow test
-}
-```
-
-### Benchmark Tests
-
-Add benchmarks for performance-critical code:
-
-```rust
-// benches/my_benchmark.rs
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
-fn benchmark_parser(c: &mut Criterion) {
-    c.bench_function("parse_message", |b| {
-        b.iter(|| {
-            // Benchmark implementation
-        })
-    });
-}
-
-criterion_group!(benches, benchmark_parser);
-criterion_main!(benches);
-```
 
 ## 📖 Documentation Guidelines
 
@@ -321,14 +256,6 @@ async fn main() -> Result<(), String> {
 **Problem**: Missing dependencies
 **Solution**: Run `cargo update` and check `Cargo.toml`
 
-### Test Issues
-
-**Problem**: Tests fail with authentication errors
-**Solution**: Verify API credentials are set correctly in environment
-
-**Problem**: Flaky integration tests
-**Solution**: Add proper timeouts and retry logic
-
 ### Performance Issues
 
 **Problem**: High latency in message processing
@@ -336,24 +263,6 @@ async fn main() -> Result<(), String> {
 
 **Problem**: Memory usage grows over time
 **Solution**: Verify proper cleanup and resource management
-
-## 📊 Performance Benchmarking
-
-When making performance-related changes:
-
-1. **Baseline measurement**
-   ```bash
-   just bench > baseline.txt
-   ```
-
-2. **Make your changes**
-
-3. **Compare results**
-   ```bash
-   just bench > improved.txt
-   ```
-
-4. **Include results in PR description**
 
 ## 🔍 Code Review Process
 
@@ -363,7 +272,7 @@ When making performance-related changes:
 - **Performance** - Does it maintain or improve performance?
 - **Safety** - Is it memory-safe and thread-safe?
 - **Documentation** - Is it well-documented?
-- **Tests** - Are there adequate tests?
+- **Examples** - Are there adequate examples demonstrating usage?
 
 ### Review Timeline
 

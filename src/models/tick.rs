@@ -1,4 +1,5 @@
 use std::time::Duration;
+use serde::{Deserialize, Serialize};
 
 use crate::{
   errors::ParseTickError,
@@ -6,7 +7,7 @@ use crate::{
   Depth, Exchange, Mode, OHLC,
 };
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 ///
 /// Quote packet structure
 ///

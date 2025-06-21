@@ -1,7 +1,7 @@
 [package]
 authors = ["Kaushik Chakraborty <git@kaushikc.org>", "Shaun Pai <shauna.pai@gmail.com>"]
 name = "kiteticker-async-manager"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -52,10 +52,7 @@ name = "performance_demo"
 path = "examples/performance/performance_demo.rs"
 doc = true
 
-[[example]]
-name = "message_flow_test"
-path = "examples/performance/message_flow_test.rs"
-doc = true
+
 
 [dependencies]
 serde_json = "1.0"
@@ -72,12 +69,6 @@ byteorder = "1.5"
 log = "0.4"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["test-util"] }
-chrono = { version = "0.4.31", features = ["serde"] }
-base64 = "0.21.5"
-sha2 = "0.10"
-hex = "0.4.3"
-criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
 
 # Additional Performance Examples
@@ -86,16 +77,9 @@ name = "market_scanner"
 path = "examples/performance/market_scanner.rs"
 doc = true
 
-[[example]]
-name = "load_test"
-path = "examples/performance/load_test.rs"
-doc = true
+
 
 [[example]]
 name = "high_frequency"
 path = "examples/performance/high_frequency.rs"
 doc = true
-
-[[bench]]
-name = "websocket_performance"
-harness = false

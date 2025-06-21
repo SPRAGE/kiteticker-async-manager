@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use crate::{Order, TextMessage, TickMessage};
 
 use super::text_message::TextMessageType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 ///
 /// Parsed message from websocket
 ///

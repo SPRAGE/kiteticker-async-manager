@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 ///
 /// Postbacks and non-binary message types
 ///
 pub(crate) enum TextMessageType {
   /// Order postback
-  Order,
+  Order = 1,
   /// Error response
-  Error,
+  Error = 2,
   /// Messages and alerts from the broker
-  Message,
+  Message = 3,
 }
 
 impl From<String> for TextMessageType {

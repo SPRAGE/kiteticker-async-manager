@@ -1,17 +1,17 @@
-use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(
-  Debug, Clone, Deserialize, Serialize, Default, PartialEq, PartialOrd,
+  Debug, Clone, Copy, Deserialize_repr, Serialize_repr, Default, PartialEq, PartialOrd,
 )]
-#[serde(rename_all = "lowercase")]
+#[repr(u8)]
 ///
 /// Modes in which packets are streamed
 ///
 pub enum Mode {
-  Full,
+  LTP = 1,
   #[default]
-  Quote,
-  LTP,
+  Quote = 2,
+  Full = 3,
 }
 
 impl TryFrom<usize> for Mode {

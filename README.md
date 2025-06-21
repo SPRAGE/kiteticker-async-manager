@@ -155,7 +155,6 @@ async fn main() -> Result<(), String> {
 
 ### ⚡ Performance Examples
 - **[Performance Demo](examples/performance/performance_demo.rs)** - Benchmarking
-- **[Load Test](examples/performance/load_test.rs)** - Stress testing
 - **[High Frequency](examples/performance/high_frequency.rs)** - Maximum throughput
 
 ## 🎯 Use Cases
@@ -221,14 +220,11 @@ cd kiteticker-async-manager
 just build
 ```
 
-### Testing
+### Running Examples
 ```bash
 # Set API credentials
 export KITE_API_KEY=your_api_key
 export KITE_ACCESS_TOKEN=your_access_token
-
-# Run tests
-just test
 
 # Run examples
 cargo run --example basic/single_connection
@@ -262,7 +258,6 @@ Use [just](https://github.com/casey/just) to run development tasks:
 ```bash
 just --list  # Show available tasks
 just build   # Build the project
-just test    # Run tests
 just check   # Check code formatting and lints
 ```
 
