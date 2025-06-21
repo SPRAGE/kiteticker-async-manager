@@ -340,7 +340,7 @@ fn generate_test_symbols(count: usize) -> Vec<u32> {
     (0..count).map(|i| 100000 + i as u32).collect()
 }
 
-fn calculate_indicators(tick: &kiteticker_async::TickMessage) -> f64 {
+fn calculate_indicators(tick: &kiteticker_async_manager::TickMessage) -> f64 {
     // Simulate complex HFT calculations
     if let Some(price) = tick.content.last_price {
         // Mock technical indicators
