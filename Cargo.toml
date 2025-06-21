@@ -12,7 +12,7 @@ High-performance async WebSocket client for Kite Connect API with multi-connecti
 dynamic subscription management, and optimized data processing.
 """
 categories = ["asynchronous", "finance", "api-bindings", "network-programming"]
-keywords = ["kite", "zerodha", "websocket", "trading", "real-time", "async", "multi-connection"]
+keywords = ["kite", "websocket", "trading", "async", "real-time"]
 
 [lib]
 name = "kiteticker_async_manager"
