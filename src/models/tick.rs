@@ -83,11 +83,10 @@ impl Tick {
       if is_index {
         if let Some(bs) = i.get(8..28) {
           t.mode = Mode::Quote;
-          // 8 - 24 bytes : ohlc
-          t.ohlc = OHLC::from(&bs[0..16], &t.exchange);
-          // 24 - 28 bytes : Price change
-          // t.net_change = price(&bs[16..=19], &t.exchange);
-          t.set_change();
+          // 8 - 24 bytes : ohlc (indices use HLOC order)
+          t.ohlc = OHLC::from_index(&bs[0..16], &t.exchange);
+          // 24 - 28 bytes : price change (provided only for indices)
+          t.net_change = price(&bs[16..20], &t.exchange);
         }
       } else {
         if let Some(bs) = i.get(8..44) {
