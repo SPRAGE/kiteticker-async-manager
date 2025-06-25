@@ -79,6 +79,10 @@
 //! }
 //! ```
 //!
+//! ### Single Connection Usage
+//!
+//! ```rust,no_run
+//! use kiteticker_async_manager::{KiteTickerAsync, Mode, TickerMessage};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), String> {
@@ -121,12 +125,12 @@
 //!
 //! The library provides two main components:
 //!
-//! ### 1. [`KiteTickerAsync`] - Single WebSocket Connection
+//! ### 1. `KiteTickerAsync` - Single WebSocket Connection
 //! - Direct WebSocket client for simple use cases
 //! - Up to 3,000 symbols per connection
 //! - Manual connection management
 //!
-//! ### 2. [`KiteTickerManager`] - Multi-Connection Manager (Recommended)
+//! ### 2. `KiteTickerManager` - Multi-Connection Manager (Recommended)
 //! - Manages up to 3 WebSocket connections automatically
 //! - Supports up to 9,000 symbols total
 //! - Dynamic subscription management
@@ -137,9 +141,9 @@
 //!
 //! The library supports three subscription modes:
 //!
-//! - **[`Mode::LTP`]** - Last traded price only (minimal bandwidth)
-//! - **[`Mode::Quote`]** - Price + volume + OHLC (standard data)
-//! - **[`Mode::Full`]** - Complete market depth (maximum data)
+//! - **`Mode::LTP`** - Last traded price only (minimal bandwidth)
+//! - **`Mode::Quote`** - Price + volume + OHLC (standard data)
+//! - **`Mode::Full`** - Complete market depth (maximum data)
 //!
 //! ## Examples
 //!
@@ -154,21 +158,7 @@
 //! - [Getting Started Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/getting-started.md)
 //! - [API Reference](https://github.com/kaychaks/kiteticker-async/blob/master/docs/api/)
 //! - [Dynamic Subscriptions](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)
-//! - [Performance Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/PERFORMANCE_IMPROVEMENTS.md) {
-//!     match msg {
-//!       TickerMessage::Ticks(ticks) => {
-//!         let tick = ticks.first().unwrap();
-//!         println!("Received tick for instrument_token {}, {:?}", tick.instrument_token, tick);
-//!         break;
-//!       },
-//!      _ => continue,
-//!     }
-//!   }
-//!  }
-//!
-//!   Ok(())
-//! }
-//! ```
+//! - [Performance Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/PERFORMANCE_IMPROVEMENTS.md)
 mod errors;
 mod models;
 mod parser;

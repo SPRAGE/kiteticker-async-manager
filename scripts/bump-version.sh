@@ -91,15 +91,20 @@ else
     print_info "✅ Unit tests passed"
 fi
 
-# Test 4: Run integration tests (if any)
-print_info "Running integration tests..."
-if ! cargo test --test '*' --all-features > /dev/null 2>&1; then
-    print_error "❌ Integration tests failed!"
-    echo ""
-    print_info "Run 'cargo test --test '*' --all-features' to see failing tests"
-    exit 1
+# Test 4: Run integration tests (if any exist)
+print_info "Checking for integration tests..."
+if [ -d "tests" ] && [ "$(find tests -name '*.rs' | wc -l)" -gt 0 ]; then
+    print_info "Running integration tests..."
+    if ! cargo test --test '*' --all-features > /dev/null 2>&1; then
+        print_error "❌ Integration tests failed!"
+        echo ""
+        print_info "Run 'cargo test --test '*' --all-features' to see failing tests"
+        exit 1
+    else
+        print_info "✅ Integration tests passed"
+    fi
 else
-    print_info "✅ Integration tests passed"
+    print_info "⏭️  No integration tests found (tests/ directory empty or missing)"
 fi
 
 # Test 5: Run doc tests
