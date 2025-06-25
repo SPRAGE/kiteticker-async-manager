@@ -57,8 +57,7 @@ cargo build
 # Run tests to ensure everything works
 cargo test --all-features
 
-# Check formatting and linting
-cargo fmt --check
+# Check linting
 cargo clippy --all-targets --all-features
 ```
 
@@ -88,9 +87,6 @@ cargo test --all-features
 # Test with minimal features
 cargo test --no-default-features
 
-# Check formatting
-cargo fmt --all
-
 # Run clippy
 cargo clippy --all-targets --all-features -- -D warnings
 
@@ -101,7 +97,6 @@ cargo doc --no-deps --all-features
 ## 📝 Code Standards
 
 ### Rust Code Style
-- Follow official Rust formatting: `cargo fmt`
 - Address all clippy warnings: `cargo clippy`
 - Use meaningful variable and function names
 - Add documentation for public APIs
@@ -138,7 +133,6 @@ docs(readme): update installation instructions
 
 ### 1. Before Submitting
 - [ ] All tests pass locally
-- [ ] Code is formatted (`cargo fmt`)
 - [ ] No clippy warnings
 - [ ] Documentation is updated
 - [ ] CHANGELOG.md is updated (for notable changes)

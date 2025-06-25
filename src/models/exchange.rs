@@ -21,17 +21,14 @@ pub enum Exchange {
 impl Exchange {
   pub(crate) fn divisor(&self) -> f64 {
     match self {
-      Self::CDS => 100_000_0.0,
-      Self::BCD => 100_0.0,
+      Self::CDS => 1_000_000.0,
+      Self::BCD => 1_000.0,
       _ => 100.0,
     }
   }
 
   pub(crate) fn is_tradable(&self) -> bool {
-    match self {
-      Self::INDICES => false,
-      _ => true,
-    }
+    !matches!(self, Self::INDICES)
   }
 }
 

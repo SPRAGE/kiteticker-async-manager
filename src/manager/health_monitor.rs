@@ -111,8 +111,10 @@ impl HealthMonitor {
     
     /// Get comprehensive manager statistics
     pub async fn get_manager_stats(&self) -> ManagerStats {
-        let mut manager_stats = ManagerStats::default();
-        manager_stats.uptime = self.manager_start_time.elapsed();
+        let mut manager_stats = ManagerStats {
+            uptime: self.manager_start_time.elapsed(),
+            ..Default::default()
+        };
         
         let mut active_connections = 0;
         

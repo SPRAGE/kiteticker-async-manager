@@ -101,7 +101,7 @@ impl KiteTickerAsync {
     let default_mode = mode.unwrap_or_default();
     let st = instrument_tokens
       .iter()
-      .map(|&t| (t, default_mode.clone()))
+      .map(|&t| (t, default_mode))
       .collect();
 
     let rx = self.msg_tx.subscribe();
@@ -118,10 +118,10 @@ impl KiteTickerAsync {
       let _ = tx.send(Message::Close(None));
     }
     if let Some(handle) = self.writer_handle.take() {
-      let _ = handle.await.map_err(|e| e.to_string())?;
+      handle.await.map_err(|e| e.to_string())?;
     }
     if let Some(handle) = self.reader_handle.take() {
-      let _ = handle.await.map_err(|e| e.to_string())?;
+      handle.await.map_err(|e| e.to_string())?;
     }
     Ok(())
   }
@@ -179,8 +179,8 @@ impl KiteTickerAsync {
   /// Check if the connection is still alive
   pub fn is_connected(&self) -> bool {
     self.cmd_tx.is_some() && 
-    self.writer_handle.as_ref().map_or(false, |h| !h.is_finished()) &&
-    self.reader_handle.as_ref().map_or(false, |h| !h.is_finished())
+    self.writer_handle.as_ref().is_some_and(|h| !h.is_finished()) &&
+    self.reader_handle.as_ref().is_some_and(|h| !h.is_finished())
   }
 
   /// Send a ping to keep the connection alive
@@ -229,13 +229,12 @@ impl KiteTickerSubscriber {
   /// get all tokens common between subscribed tokens and input tokens
   /// and if the input is empty then all subscribed tokens will be unsubscribed
   fn get_subscribed_or(&self, tokens: &[u32]) -> Vec<u32> {
-    if tokens.len() == 0 {
+    if tokens.is_empty() {
       self.get_subscribed()
     } else {
       tokens
         .iter()
-        .filter(|t| self.subscribed_tokens.contains_key(t))
-        .map(|t| t.clone())
+        .filter(|t| self.subscribed_tokens.contains_key(t)).copied()
         .collect::<Vec<_>>()
     }
   }
@@ -249,7 +248,7 @@ impl KiteTickerSubscriber {
     self.subscribed_tokens.extend(
       tokens
         .iter()
-        .map(|t| (t.clone(), mode.clone().unwrap_or_default())),
+        .map(|t| (*t, mode.unwrap_or_default())),
     );
     let tks = self.get_subscribed();
     self.ticker.subscribe_cmd(tks.as_slice(), None).await?;
@@ -305,7 +304,7 @@ fn process_message(message: Message) -> Option<TickerMessage> {
     Message::Text(text_message) => process_text_message(text_message),
     Message::Binary(ref binary_message) => {
       if binary_message.len() < 2 {
-        return Some(TickerMessage::Ticks(vec![]));
+        Some(TickerMessage::Ticks(vec![]))
       } else {
         process_binary(binary_message.as_slice())
       }

@@ -16,31 +16,23 @@ pub struct OHLC {
 
 impl OHLC {
   pub(crate) fn from(value: &[u8], exchange: &Exchange) -> Option<Self> {
-    if let Some(bs) = value.get(0..16) {
-      Some(OHLC {
+    value.get(0..16).map(|bs| OHLC {
         open: price(&bs[0..=3], exchange).unwrap(),
         high: price(&bs[4..=7], exchange).unwrap(),
         low: price(&bs[8..=11], exchange).unwrap(),
         close: price(&bs[12..=15], exchange).unwrap(),
       })
-    } else {
-      None
-    }
   }
 
   /// Parse OHLC bytes for index instruments.
   ///
   /// The order of fields for indices is `high`, `low`, `open`, `close`.
   pub(crate) fn from_index(value: &[u8], exchange: &Exchange) -> Option<Self> {
-    if let Some(bs) = value.get(0..16) {
-      Some(OHLC {
+    value.get(0..16).map(|bs| OHLC {
         open: price(&bs[8..=11], exchange).unwrap(),
         high: price(&bs[0..=3], exchange).unwrap(),
         low: price(&bs[4..=7], exchange).unwrap(),
         close: price(&bs[12..=15], exchange).unwrap(),
       })
-    } else {
-      None
-    }
   }
 }

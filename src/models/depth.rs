@@ -49,14 +49,10 @@ pub struct DepthItem {
 
 impl DepthItem {
   pub fn from(input: &[u8], exchange: &Exchange) -> Option<Self> {
-    if let Some(bs) = input.get(0..10) {
-      Some(DepthItem {
+    input.get(0..10).map(|bs| DepthItem {
         qty: value(&bs[0..=3]).unwrap(),
         price: price(&bs[4..=7], exchange).unwrap(),
         orders: value_short(&bs[8..=9]).unwrap(),
       })
-    } else {
-      None
-    }
   }
 }

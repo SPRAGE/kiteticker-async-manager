@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::Mode;
 
@@ -71,9 +72,10 @@ impl Request {
   }
 }
 
-impl ToString for Request {
-  fn to_string(&self) -> String {
-    serde_json::to_string(self)
-      .expect("failed to serialize TickerInput to JSON")
+impl fmt::Display for Request {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let json = serde_json::to_string(self)
+      .expect("failed to serialize Request to JSON");
+    write!(f, "{}", json)
   }
 }

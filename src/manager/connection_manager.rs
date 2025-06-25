@@ -173,7 +173,7 @@ impl KiteTickerManager {
         symbols: &[u32],
         mode: Option<Mode>,
     ) -> Result<(), String> {
-        let mode = mode.unwrap_or_else(|| self.config.default_mode.clone());
+        let mode = mode.unwrap_or(self.config.default_mode);
         
         log::info!("Subscribing to {} symbols with mode: {:?}", symbols.len(), mode);
         
@@ -198,7 +198,7 @@ impl KiteTickerManager {
         // Subscribe symbols on each connection
         for (connection_id, symbols) in connection_symbols {
             let connection = &mut self.connections[connection_id.to_index()];
-            let mode_clone = mode.clone(); // Clone for each connection
+            let mode_clone = mode; // Clone for each connection
             
             if !symbols.is_empty() {
                 // Use dynamic subscription if already has symbols, otherwise initial setup
@@ -358,12 +358,12 @@ impl KiteTickerManager {
             
             if !symbols.is_empty() {
                 if let Some(subscriber) = &mut connection.subscriber {
-                    subscriber.set_mode(&symbols, mode.clone()).await
+                    subscriber.set_mode(&symbols, mode).await
                         .map_err(|e| format!("Failed to change mode on connection {:?}: {}", channel_id, e))?;
                     
                     // Update our tracking
                     for &symbol in &symbols {
-                        connection.subscribed_symbols.insert(symbol, mode.clone());
+                        connection.subscribed_symbols.insert(symbol, mode);
                     }
                     
                     log::info!("Changed mode for {} symbols on connection {:?}", symbols.len(), channel_id);

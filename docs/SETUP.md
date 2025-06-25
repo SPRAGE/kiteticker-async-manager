@@ -172,7 +172,6 @@ git tag -l
 
 **CI failures:**
 - Check that all tests pass locally
-- Verify formatting: `cargo fmt --check`
 - Run clippy: `cargo clippy --all-targets --all-features`
 
 **Release failures:**

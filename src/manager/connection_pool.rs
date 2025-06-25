@@ -28,8 +28,10 @@ pub struct ManagedConnection {
 
 impl ManagedConnection {
     pub fn new(id: ChannelId, message_sender: mpsc::UnboundedSender<TickerMessage>) -> Self {
-        let mut stats = ConnectionStats::default();
-        stats.connection_id = id.to_index();
+        let stats = ConnectionStats {
+            connection_id: id.to_index(),
+            ..Default::default()
+        };
         
         Self {
             id,
@@ -94,11 +96,11 @@ impl ManagedConnection {
             ).await?;
             
             // Use the new ticker to create a subscriber
-            let subscriber = subscriber_ticker.subscribe(symbols, Some(mode.clone())).await?;
+            let subscriber = subscriber_ticker.subscribe(symbols, Some(mode)).await?;
             
             // Update our symbol tracking
             for &symbol in symbols {
-                self.subscribed_symbols.insert(symbol, mode.clone());
+                self.subscribed_symbols.insert(symbol, mode);
             }
             
             // Store subscriber for message processing
@@ -125,11 +127,11 @@ impl ManagedConnection {
         if self.subscriber.is_some() {
             // Add to existing subscription
             let subscriber = self.subscriber.as_mut().unwrap();
-            subscriber.subscribe(symbols, Some(mode.clone())).await?;
+            subscriber.subscribe(symbols, Some(mode)).await?;
             
             // Update our symbol tracking
             for &symbol in symbols {
-                self.subscribed_symbols.insert(symbol, mode.clone());
+                self.subscribed_symbols.insert(symbol, mode);
             }
             
             // Update stats
@@ -220,7 +222,7 @@ impl ManagedConnection {
                     }
                     
                     // Forward message to parser (non-blocking)
-                    if let Err(_) = message_sender.send(message) {
+                    if message_sender.send(message).is_err() {
                         log::warn!("Connection {}: Parser channel full, dropping message", connection_id.to_index());
                         
                         // Update error stats

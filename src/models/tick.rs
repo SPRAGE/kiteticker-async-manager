@@ -51,7 +51,7 @@ impl Tick {
       .map(|close_price| {
         if let Some(last_price) = self.last_price {
           if close_price == 0_f64 {
-            return None;
+            None
           } else {
             // Some(((last_price - close_price) * 100.0).div(close_price))
             Some(last_price - close_price)
@@ -88,8 +88,7 @@ impl Tick {
           // 24 - 28 bytes : price change (provided only for indices)
           t.net_change = price(&bs[16..20], &t.exchange);
         }
-      } else {
-        if let Some(bs) = i.get(8..44) {
+      } else if let Some(bs) = i.get(8..44) {
           t.mode = Mode::Quote;
           // 8 - 12 bytes : last traded quantity
           t.last_traded_qty = value(&bs[0..4]);
@@ -104,7 +103,6 @@ impl Tick {
           // 28 - 44 bytes : ohlc
           t.ohlc = OHLC::from(&bs[20..36], &t.exchange);
         }
-      }
     };
 
     let parse_full = |t: &mut Tick, i: &[u8], is_index: bool| {
@@ -115,8 +113,7 @@ impl Tick {
           t.exchange_timestamp =
             value(bs).map(|x| Duration::from_secs(x.into()));
         }
-      } else {
-        if let Some(bs) = i.get(44..184) {
+      } else if let Some(bs) = i.get(44..184) {
           t.mode = Mode::Full;
           t.set_change();
 
@@ -136,7 +133,6 @@ impl Tick {
           // 64 - 184 bytes : market depth
           t.depth = Depth::from(&bs[20..140], &t.exchange);
         }
-      }
     };
 
     parse_ltp(&mut tick, input);
