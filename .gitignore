@@ -1,0 +1,31 @@
+*.log
+target/
+Cargo.lock
+.env
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+
+# Coverage reports
+cobertura.xml
+lcov.info
+coverage/
+
+# Documentation build
+/target/doc/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS generated files
+Thumbs.db
+.DS_Store

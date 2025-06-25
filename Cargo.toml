@@ -1,0 +1,46 @@
+[package]
+name = "my-rust-project"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Rust project created from the enhanced template"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/YOUR_USERNAME/YOUR_PROJECT_NAME"
+homepage = "https://github.com/YOUR_USERNAME/YOUR_PROJECT_NAME"
+documentation = "https://docs.rs/YOUR_PROJECT_NAME"
+keywords = ["rust", "template", "example"]
+categories = ["development-tools"]
+readme = "README.md"
+rust-version = "1.70.0"  # Minimum Supported Rust Version
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Add your dependencies here
+serde = { version = "1.0", features = ["derive"], optional = true }
+tokio = { version = "1.0", features = ["full"], optional = true }
+
+[dev-dependencies]
+# Development dependencies
+tokio-test = "0.4"
+futures = "0.3"
+serde_json = "1.0"
+
+[features]
+default = []
+# Add your feature flags here
+serde = ["dep:serde"]
+async = ["dep:tokio"]
+
+# Configuration for docs.rs documentation builds
+[package.metadata.docs.rs]
+features = ["serde", "async"]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[example]]
+name = "basic"
+required-features = []
+
+[[example]]
+name = "async"
+required-features = ["async"]
