@@ -310,7 +310,11 @@ This may include breaking changes.
 Please review CHANGELOG.md and update migration documentation."
 fi
 
-git add Cargo.toml Cargo.lock
+git add Cargo.toml
+# Only add Cargo.lock if it's not ignored
+if ! git check-ignore Cargo.lock > /dev/null 2>&1; then
+    git add Cargo.lock
+fi
 if grep -q "$new_version" README.md 2>/dev/null; then
     git add README.md
 fi
