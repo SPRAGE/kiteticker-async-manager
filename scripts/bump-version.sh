@@ -52,6 +52,103 @@ if ! git diff-index --quiet HEAD --; then
     exit 1
 fi
 
+# Run comprehensive tests before making any changes
+print_info "🧪 Running comprehensive test suite before version bump..."
+echo ""
+
+# Test 1: Check code formatting (if rustfmt is available)
+if command -v rustfmt > /dev/null 2>&1; then
+    print_info "Checking code formatting..."
+    if ! cargo fmt --all -- --check > /dev/null 2>&1; then
+        print_warning "Code formatting issues detected. Run 'cargo fmt' to fix."
+        # Don't fail on formatting issues, just warn
+    else
+        print_info "✅ Code formatting looks good"
+    fi
+else
+    print_info "⏭️  Skipping format check (rustfmt not available)"
+fi
+
+# Test 2: Run clippy for code quality
+print_info "Running clippy for code quality checks..."
+if ! cargo clippy --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
+    print_error "❌ Clippy checks failed! Please fix code quality issues first."
+    echo ""
+    print_info "Run 'cargo clippy --all-targets --all-features' to see issues"
+    exit 1
+else
+    print_info "✅ Clippy checks passed"
+fi
+
+# Test 3: Run unit tests
+print_info "Running unit tests..."
+if ! cargo test --lib --all-features > /dev/null 2>&1; then
+    print_error "❌ Unit tests failed!"
+    echo ""
+    print_info "Run 'cargo test --lib --all-features' to see failing tests"
+    exit 1
+else
+    print_info "✅ Unit tests passed"
+fi
+
+# Test 4: Run integration tests (if any)
+print_info "Running integration tests..."
+if ! cargo test --test '*' --all-features > /dev/null 2>&1; then
+    print_error "❌ Integration tests failed!"
+    echo ""
+    print_info "Run 'cargo test --test '*' --all-features' to see failing tests"
+    exit 1
+else
+    print_info "✅ Integration tests passed"
+fi
+
+# Test 5: Run doc tests
+print_info "Running documentation tests..."
+if ! cargo test --doc --all-features > /dev/null 2>&1; then
+    print_error "❌ Documentation tests failed!"
+    echo ""
+    print_info "Run 'cargo test --doc --all-features' to see failing tests"
+    exit 1
+else
+    print_info "✅ Documentation tests passed"
+fi
+
+# Test 6: Test with minimal features
+print_info "Testing with minimal features..."
+if ! cargo test --no-default-features > /dev/null 2>&1; then
+    print_error "❌ Minimal feature tests failed!"
+    echo ""
+    print_info "Run 'cargo test --no-default-features' to see failing tests"
+    exit 1
+else
+    print_info "✅ Minimal feature tests passed"
+fi
+
+# Test 7: Build check
+print_info "Running build check..."
+if ! cargo build --release > /dev/null 2>&1; then
+    print_error "❌ Release build failed!"
+    echo ""
+    print_info "Run 'cargo build --release' to see build errors"
+    exit 1
+else
+    print_info "✅ Release build successful"
+fi
+
+# Test 8: Check examples compile
+print_info "Checking example compilation..."
+if ! cargo check --examples > /dev/null 2>&1; then
+    print_error "❌ Example compilation failed!"
+    echo ""
+    print_info "Run 'cargo check --examples' to see compilation errors"
+    exit 1
+else
+    print_info "✅ Examples compile successfully"
+fi
+
+print_info "🎉 All tests passed! Proceeding with version bump..."
+echo ""
+
 # Get current branch
 current_branch=$(git branch --show-current 2>/dev/null || git rev-parse --short HEAD)
 
@@ -173,11 +270,15 @@ if grep -q "$current_version" README.md 2>/dev/null; then
     fi
 fi
 
-# Run tests
-print_info "Running tests to validate changes..."
-if ! cargo test --features native > /dev/null 2>&1; then
-    print_error "Tests failed! Please fix issues before committing."
+# Final validation after version update
+print_info "🔍 Running final validation with new version..."
+if ! cargo check > /dev/null 2>&1; then
+    print_error "❌ Final validation failed! Version update broke something."
+    print_info "Reverting changes..."
+    git checkout -- Cargo.toml Cargo.lock README.md 2>/dev/null || true
     exit 1
+else
+    print_info "✅ Final validation passed"
 fi
 
 # Commit changes
@@ -185,8 +286,16 @@ commit_message="chore: bump version to $new_version
 
 Version bump: $current_version → $new_version
 Type: $version_bump_type
+Branch: $target_branch
 
-Branch: $target_branch"
+✅ All tests passed:
+- Code quality (clippy)
+- Unit tests
+- Integration tests
+- Documentation tests
+- Minimal features test
+- Release build
+- Example compilation"
 
 if [[ $is_major_bump == true ]]; then
     commit_message="$commit_message
