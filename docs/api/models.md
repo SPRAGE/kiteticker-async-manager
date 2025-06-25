@@ -157,6 +157,18 @@ pub struct OHLC {
 }
 ```
 
+For **index quotes**, the streaming payload includes an additional
+`net_change` value immediately after the OHLC bytes. The order of the
+OHLC fields also differs:
+
+```
+Index quotes:  High, Low, Open, Close
+Other quotes:  Open, High, Low, Close
+```
+
+This library parses the `net_change` field directly and accounts for the
+different field order when constructing the [`OHLC`] struct.
+
 ### `MarketDepth`
 
 Order book depth data (Full mode only).
