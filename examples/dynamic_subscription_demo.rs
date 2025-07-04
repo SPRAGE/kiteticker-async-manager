@@ -110,13 +110,13 @@ async fn main() -> Result<(), String> {
                                 // Debug: Show all available fields
                                 debug!("DEBUG Full Tick Data for symbol {}:", tick.instrument_token);
                                 debug!("  - Instrument Token: {}", tick.instrument_token);
-                                debug!("  - Timestamp: {:?}", tick.timestamp);
-                                debug!("  - Tradable: {:?}", tick.tradable);
-                                debug!("  - Exchange Timestamp: {:?}", tick.exchange_timestamp);
-                                debug!("  - Last Traded Time: {:?}", tick.last_trade_time);
-                                debug!("  - Total Buy Quantity: {:?}", tick.content.total_buy_quantity);
-                                debug!("  - Total Sell Quantity: {:?}", tick.content.total_sell_quantity);
-                                debug!("  - Average Price: {:?}", tick.content.average_traded_price);
+                                debug!("  - Timestamp: <not available>");
+                                debug!("  - Tradable: <not available>");
+                                debug!("  - Exchange Timestamp: {:?}", tick.content.exchange_timestamp);
+                                debug!("  - Last Traded Time: <not available>");
+                                debug!("  - Total Buy Quantity: {:?}", tick.content.total_buy_qty);
+                                debug!("  - Total Sell Quantity: {:?}", tick.content.total_sell_qty);
+                                debug!("  - Average Price: {:?}", tick.content.avg_traded_price);
                                 debug!("  - OI: {:?}", tick.content.oi);
                                 debug!("  - OI Day High: {:?}", tick.content.oi_day_high);
                                 debug!("  - OI Day Low: {:?}", tick.content.oi_day_low);
@@ -142,15 +142,15 @@ async fn main() -> Result<(), String> {
                                         if !depth.buy.is_empty() {
                                             debug!("Top Buy Orders for symbol {}:", tick.instrument_token);
                                             for (idx, buy_order) in depth.buy.iter().take(3).enumerate() {
-                                                debug!("  {}. Price: {}, Quantity: {}, Orders: {}", 
-                                                    idx + 1, buy_order.price, buy_order.quantity, buy_order.orders);
+                                                debug!("  {}. Price: {}, Qty: {}, Orders: {}", 
+                                                    idx + 1, buy_order.price, buy_order.qty, buy_order.orders);
                                             }
                                         }
                                         if !depth.sell.is_empty() {
                                             debug!("Top Sell Orders for symbol {}:", tick.instrument_token);
                                             for (idx, sell_order) in depth.sell.iter().take(3).enumerate() {
-                                                debug!("  {}. Price: {}, Quantity: {}, Orders: {}", 
-                                                    idx + 1, sell_order.price, sell_order.quantity, sell_order.orders);
+                                                debug!("  {}. Price: {}, Qty: {}, Orders: {}", 
+                                                    idx + 1, sell_order.price, sell_order.qty, sell_order.orders);
                                             }
                                         }
                                     } else {
@@ -221,33 +221,33 @@ async fn demo_dynamic_subscription(manager: &mut KiteTickerManager) -> Result<()
                             debug!("Processing {} ticks on {:?}", ticks.len(), channel_id);
                             
                             for (idx, tick) in ticks.iter().enumerate() {
-                                println!("  🔹 Tick {}: Symbol: {}, LTP: {}, Volume: {}, Change: {}%", 
+                                println!("  🔹 Tick {}: Symbol: {}, LTP: {:?}, Volume: {:?}, Change: {:?}", 
                                     idx + 1,
                                     tick.instrument_token, 
-                                    tick.last_price,
-                                    tick.volume_traded.unwrap_or(0),
-                                    tick.change.unwrap_or(0.0)
+                                    tick.content.last_price,
+                                    tick.content.volume_traded,
+                                    tick.content.net_change
                                 );
                                 
                                 // Debug: Show tick structure details
                                 debug!("Tick {} Details for symbol {}:", idx + 1, tick.instrument_token);
                                 debug!("  - Raw instrument_token: {}", tick.instrument_token);
-                                debug!("  - Raw last_price: {:?}", tick.last_price);
-                                debug!("  - Raw volume_traded: {:?}", tick.volume_traded);
-                                debug!("  - Raw change: {:?}", tick.change);
-                                debug!("  - Raw last_quantity: {:?}", tick.last_quantity);
-                                debug!("  - Raw average_price: {:?}", tick.average_price);
-                                debug!("  - Raw buy_quantity: {:?}", tick.buy_quantity);
-                                debug!("  - Raw sell_quantity: {:?}", tick.sell_quantity);
-                                debug!("  - Raw oi: {:?}", tick.oi);
-                                debug!("  - Raw mode: {:?}", tick.mode);
+                                debug!("  - Raw last_price: {:?}", tick.content.last_price);
+                                debug!("  - Raw volume_traded: {:?}", tick.content.volume_traded);
+                                debug!("  - Raw change: {:?}", tick.content.net_change);
+                                debug!("  - Raw last_quantity: <not available>");
+                                debug!("  - Raw average_price: {:?}", tick.content.avg_traded_price);
+                                debug!("  - Raw buy_quantity: {:?}", tick.content.total_buy_qty);
+                                debug!("  - Raw sell_quantity: {:?}", tick.content.total_sell_qty);
+                                debug!("  - Raw oi: {:?}", tick.content.oi);
+                                debug!("  - Raw mode: {:?}", tick.content.mode);
                                 
-                                if let Some(ohlc) = &tick.ohlc {
+                                if let Some(ohlc) = &tick.content.ohlc {
                                     debug!("  - OHLC available: O:{} H:{} L:{} C:{}", 
                                         ohlc.open, ohlc.high, ohlc.low, ohlc.close);
                                 }
                                 
-                                if let Some(depth) = &tick.depth {
+                                if let Some(depth) = &tick.content.depth {
                                     debug!("  - Market depth available: {} buy, {} sell", 
                                         depth.buy.len(), depth.sell.len());
                                 }
@@ -388,54 +388,51 @@ async fn demo_dynamic_subscription(manager: &mut KiteTickerManager) -> Result<()
                                 count, ticks.len(), channel_id);
                             
                             for tick in &ticks {
-                                println!("  🔹 Symbol: {}, LTP: {}, Volume: {}, Change: {}%", 
+                                println!("  🔹 Symbol: {}, LTP: {:?}, Volume: {:?}, Change: {:?}", 
                                     tick.instrument_token, 
-                                    tick.last_price,
-                                    tick.volume_traded.unwrap_or(0),
-                                    tick.change.unwrap_or(0.0)
+                                    tick.content.last_price,
+                                    tick.content.volume_traded,
+                                    tick.content.net_change
                                 );
                                 
                                 // Debug: Show complete tick analysis
                                 debug!("Final Debug Analysis for Symbol {}:", tick.instrument_token);
                                 debug!("  - Timestamp: Now = {:?}", std::time::SystemTime::now());
                                 debug!("  - Data completeness check:");
-                                debug!("    * Last Price: {} (✅)", tick.last_price);
-                                debug!("    * Volume: {} ({})", 
-                                    tick.volume_traded.unwrap_or(0), 
-                                    if tick.volume_traded.is_some() { "✅" } else { "❌" });
-                                debug!("    * Change: {}% ({})", 
-                                    tick.change.unwrap_or(0.0),
-                                    if tick.change.is_some() { "✅" } else { "❌" });
-                                debug!("    * Mode: {} (✅)", tick.mode);
+                                debug!("    * Last Price: {:?} (✅)", tick.content.last_price);
+                                debug!("    * Volume: {:?} ({})", 
+                                    tick.content.volume_traded, 
+                                    if tick.content.volume_traded.is_some() { "✅" } else { "❌" });
+                                debug!("    * Change: {:?} ({})", 
+                                    tick.content.net_change,
+                                    if tick.content.net_change.is_some() { "✅" } else { "❌" });
+                                debug!("    * Mode: {:?} (✅)", tick.content.mode);
                                 
                                 // Validate mode-specific data
-                                match tick.mode.as_str() {
-                                    "full" => {
+                                match tick.content.mode {
+                                    Mode::Full => {
                                         debug!("  - Full mode validation:");
-                                        debug!("    * OHLC: {}", if tick.ohlc.is_some() { "✅ Present" } else { "❌ Missing" });
-                                        debug!("    * Depth: {}", if tick.depth.is_some() { "✅ Present" } else { "❌ Missing" });
-                                        if let Some(ohlc) = &tick.ohlc {
+                                        debug!("    * OHLC: {}", if tick.content.ohlc.is_some() { "✅ Present" } else { "❌ Missing" });
+                                        debug!("    * Depth: {}", if tick.content.depth.is_some() { "✅ Present" } else { "❌ Missing" });
+                                        if let Some(ohlc) = &tick.content.ohlc {
                                             debug!("    * OHLC Values: O:{} H:{} L:{} C:{}", 
                                                 ohlc.open, ohlc.high, ohlc.low, ohlc.close);
                                         }
-                                        if let Some(depth) = &tick.depth {
+                                        if let Some(depth) = &tick.content.depth {
                                             debug!("    * Depth Levels: {} buy, {} sell", 
                                                 depth.buy.len(), depth.sell.len());
                                         }
                                     }
-                                    "quote" => {
+                                    Mode::Quote => {
                                         debug!("  - Quote mode validation:");
-                                        debug!("    * OHLC: {}", if tick.ohlc.is_some() { "✅ Present" } else { "❌ Missing" });
-                                        if let Some(ohlc) = &tick.ohlc {
+                                        debug!("    * OHLC: {}", if tick.content.ohlc.is_some() { "✅ Present" } else { "❌ Missing" });
+                                        if let Some(ohlc) = &tick.content.ohlc {
                                             debug!("    * OHLC Values: O:{} H:{} L:{} C:{}", 
                                                 ohlc.open, ohlc.high, ohlc.low, ohlc.close);
                                         }
                                     }
-                                    "ltp" => {
+                                    Mode::LTP => {
                                         debug!("  - LTP mode validation: ✅ Basic data only");
-                                    }
-                                    _ => {
-                                        debug!("  - ❌ Unknown mode: {}", tick.mode);
                                     }
                                 }
                             }
@@ -504,7 +501,7 @@ async fn print_distribution(manager: &KiteTickerManager, context: &str) {
     println!("   Total: {} symbols", total);
 }
 
-async fn monitor_ticks_briefly(manager: &KiteTickerManager, duration_secs: u64, context: &str) {
+async fn monitor_ticks_briefly(manager: &mut KiteTickerManager, duration_secs: u64, context: &str) {
     println!("\n📺 {} - Monitoring ticks for {} seconds...", context, duration_secs);
     
     let channels = manager.get_all_channels();
@@ -526,36 +523,36 @@ async fn monitor_ticks_briefly(manager: &KiteTickerManager, duration_secs: u64, 
                             debug!("Monitoring tick batch #{} with {} ticks on {:?}", count, ticks.len(), channel_id);
                             
                             for (idx, tick) in ticks.iter().enumerate() {
-                                println!("  🔹 Symbol: {}, LTP: {}, Volume: {}, Change: {}%, OHLC: [{}/{}/{}/{}]", 
+                                println!("  🔹 Symbol: {}, LTP: {:?}, Volume: {:?}, Change: {:?}, OHLC: [{}/{}/{}/{}]", 
                                     tick.instrument_token, 
-                                    tick.last_price,
-                                    tick.volume_traded.unwrap_or(0),
-                                    tick.change.unwrap_or(0.0),
-                                    tick.ohlc.as_ref().map(|o| o.open).unwrap_or(0.0),
-                                    tick.ohlc.as_ref().map(|o| o.high).unwrap_or(0.0),
-                                    tick.ohlc.as_ref().map(|o| o.low).unwrap_or(0.0),
-                                    tick.ohlc.as_ref().map(|o| o.close).unwrap_or(0.0)
+                                    tick.content.last_price,
+                                    tick.content.volume_traded,
+                                    tick.content.net_change,
+                                    tick.content.ohlc.as_ref().map(|o| o.open).unwrap_or(0.0),
+                                    tick.content.ohlc.as_ref().map(|o| o.high).unwrap_or(0.0),
+                                    tick.content.ohlc.as_ref().map(|o| o.low).unwrap_or(0.0),
+                                    tick.content.ohlc.as_ref().map(|o| o.close).unwrap_or(0.0)
                                 );
                                 
                                 // Debug: Show tick metadata
                                 debug!("Tick {} metadata for symbol {}:", idx + 1, tick.instrument_token);
                                 debug!("  - Received at: {:?}", std::time::SystemTime::now());
-                                debug!("  - Mode: {:?}", tick.mode);
-                                debug!("  - Last Qty: {:?}", tick.last_quantity);
-                                debug!("  - Avg Price: {:?}", tick.average_price);
-                                debug!("  - Buy/Sell Qty: {:?}/{:?}", tick.buy_quantity, tick.sell_quantity);
+                                debug!("  - Mode: {:?}", tick.content.mode);
+                                debug!("  - Last Qty: <not available>");
+                                debug!("  - Avg Price: {:?}", tick.content.avg_traded_price);
+                                debug!("  - Buy/Sell Qty: {:?}/{:?}", tick.content.total_buy_qty, tick.content.total_sell_qty);
                                 
-                                if tick.mode == "full" || tick.mode == "quote" {
-                                    if tick.ohlc.is_some() {
+                                if tick.content.mode == Mode::Full || tick.content.mode == Mode::Quote {
+                                    if tick.content.ohlc.is_some() {
                                         debug!("  - ✅ OHLC data present for symbol {}", tick.instrument_token);
                                     } else {
-                                        debug!("  - ❌ OHLC data missing for symbol {} (expected for mode: {})", 
-                                               tick.instrument_token, tick.mode);
+                                        debug!("  - ❌ OHLC data missing for symbol {} (expected for mode: {:?})", 
+                                               tick.instrument_token, tick.content.mode);
                                     }
                                 }
                                 
-                                if tick.mode == "full" {
-                                    if let Some(depth) = &tick.depth {
+                                if tick.content.mode == Mode::Full {
+                                    if let Some(depth) = &tick.content.depth {
                                         debug!("  - ✅ Market depth present for symbol {}: {} buy, {} sell levels", 
                                             tick.instrument_token, depth.buy.len(), depth.sell.len());
                                     } else {
