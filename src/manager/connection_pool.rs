@@ -214,6 +214,25 @@ impl ManagedConnection {
                 Ok(Ok(Some(message))) => {
                     last_message_time = Instant::now();
                     
+                    // Debug: Print incoming message
+                    match &message {
+                        TickerMessage::Ticks(ticks) => {
+                            log::debug!("Connection {}: Received {} ticks", connection_id.to_index(), ticks.len());
+                            for (i, tick) in ticks.iter().enumerate() {
+                                if i < 3 { // Only log first 3 ticks to avoid spam
+                                    log::debug!("  Tick {}: Symbol {}, Mode {:?}, LTP {:?}", 
+                                               i+1, tick.instrument_token, tick.content.mode, tick.content.last_price);
+                                }
+                            }
+                        }
+                        TickerMessage::Error(err) => {
+                            log::debug!("Connection {}: Received error message: {}", connection_id.to_index(), err);
+                        }
+                        _ => {
+                            log::debug!("Connection {}: Received other message: {:?}", connection_id.to_index(), message);
+                        }
+                    }
+                    
                     // Update stats
                     {
                         let mut stats = stats.write().await;

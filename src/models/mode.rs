@@ -14,6 +14,17 @@ pub enum Mode {
   Full = 3,
 }
 
+impl Mode {
+  /// Convert Mode to WebSocket command string
+  pub fn to_websocket_string(&self) -> &'static str {
+    match self {
+      Mode::LTP => "ltp",
+      Mode::Quote => "quote",
+      Mode::Full => "full",
+    }
+  }
+}
+
 impl TryFrom<usize> for Mode {
   type Error = String;
   fn try_from(value: usize) -> Result<Self, Self::Error> {

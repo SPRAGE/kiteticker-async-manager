@@ -14,14 +14,42 @@ enum RequestActions {
   Mode,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(untagged)]
+#[derive(Clone, Debug)]
 ///
 /// Websocket request data
 ///
 enum RequestData {
   InstrumentTokens(Vec<u32>),
   InstrumentTokensWithMode(Mode, Vec<u32>),
+}
+
+// Custom serialization for RequestData
+impl serde::Serialize for RequestData {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    match self {
+      RequestData::InstrumentTokens(tokens) => tokens.serialize(serializer),
+      RequestData::InstrumentTokensWithMode(mode, tokens) => {
+        // Serialize as [mode_string, tokens_array] according to Kite docs
+        let mode_str = mode.to_websocket_string();
+        let tuple = (mode_str, tokens);
+        tuple.serialize(serializer)
+      }
+    }
+  }
+}
+
+// We don't need custom deserialization for RequestData since it's only used for sending
+impl<'de> serde::Deserialize<'de> for RequestData {
+  fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    // This is only used for outgoing requests, not parsing responses
+    unimplemented!("RequestData deserialization not needed")
+  }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
