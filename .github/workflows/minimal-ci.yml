@@ -1,0 +1,41 @@
+name: Minimal CI
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quick-check:
+    name: Quick Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-check-
+    
+    # Just verify it compiles
+    - name: Check compilation
+      run: cargo check --all-features
+    
+    # Run only unit tests (fast)
+    - name: Run unit tests
+      run: cargo test --lib --bins --all-features
+    
+    # Verify it can be published
+    - name: Publish dry run
+      run: cargo publish --dry-run --all-features
