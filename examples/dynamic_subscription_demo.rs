@@ -3,7 +3,6 @@ use kiteticker_async_manager::{
 };
 use std::time::{Duration, Instant};
 use tokio::time::{timeout, sleep};
-use env_logger;
 use log::debug;
 
 #[tokio::main]
