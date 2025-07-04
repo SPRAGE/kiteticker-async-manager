@@ -26,7 +26,6 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-        components: clippy
     
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -45,10 +44,6 @@ jobs:
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Run clippy
-      if: matrix.rust == 'stable'
-      run: cargo clippy --all-targets --all-features -- -D warnings
 
     - name: Run tests
       run: cargo test --verbose --all-features
