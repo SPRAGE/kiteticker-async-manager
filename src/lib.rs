@@ -10,8 +10,8 @@
 ))]
 
 //! # KiteTicker Async Manager
-//! 
-//! High-performance async WebSocket client for the [Kite Connect API](https://kite.trade/docs/connect/v3/websocket/#websocket-streaming) 
+//!
+//! High-performance async WebSocket client for the [Kite Connect API](https://kite.trade/docs/connect/v3/websocket/#websocket-streaming)
 //! with multi-connection support and dynamic subscription management.
 //!
 //! ## Features
@@ -61,7 +61,7 @@
 //!                 if let TickerMessage::Ticks(ticks) = message {
 //!                     for tick in ticks {
 //!                         println!("Channel {:?}: {} @ ₹{:.2}",
-//!                             channel_id, 
+//!                             channel_id,
 //!                             tick.instrument_token,
 //!                             tick.content.last_price.unwrap_or(0.0));
 //!                     }
@@ -100,7 +100,7 @@
 //!     while let Ok(Some(message)) = subscriber.next_message().await {
 //!         if let TickerMessage::Ticks(ticks) = message {
 //!             for tick in ticks {
-//!                 println!("Symbol {}: ₹{:.2}", 
+//!                 println!("Symbol {}: ₹{:.2}",
 //!                     tick.instrument_token,
 //!                     tick.content.last_price.unwrap_or(0.0));
 //!             }
@@ -160,9 +160,9 @@
 //! - [Dynamic Subscriptions](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)
 //! - [Performance Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/PERFORMANCE_IMPROVEMENTS.md)
 mod errors;
+pub mod manager;
 mod models;
 mod parser;
-pub mod manager;
 pub use errors::ParseTickError;
 pub use models::{
   Depth, DepthItem, Exchange, Mode, Order, OrderStatus, OrderTransactionType,
@@ -170,5 +170,7 @@ pub use models::{
 };
 
 pub mod ticker;
+pub use manager::{
+  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager, ManagerStats,
+};
 pub use ticker::{KiteTickerAsync, KiteTickerSubscriber};
-pub use manager::{KiteTickerManager, KiteManagerConfig, ChannelId, ManagerStats, HealthSummary};

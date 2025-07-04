@@ -1,5 +1,5 @@
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::{
   errors::ParseTickError,
@@ -89,20 +89,20 @@ impl Tick {
           t.net_change = price(&bs[16..20], &t.exchange);
         }
       } else if let Some(bs) = i.get(8..44) {
-          t.mode = Mode::Quote;
-          // 8 - 12 bytes : last traded quantity
-          t.last_traded_qty = value(&bs[0..4]);
-          // 12 - 16 bytes : avg traded price
-          t.avg_traded_price = price(&bs[4..8], &t.exchange);
-          // 16 - 20 bytes : volume traded today
-          t.volume_traded = value(&bs[8..12]);
-          // 20 - 24 bytes : total buy quantity
-          t.total_buy_qty = value(&bs[12..16]);
-          // 24 - 28 bytes : total sell quantity
-          t.total_sell_qty = value(&bs[16..20]);
-          // 28 - 44 bytes : ohlc
-          t.ohlc = OHLC::from(&bs[20..36], &t.exchange);
-        }
+        t.mode = Mode::Quote;
+        // 8 - 12 bytes : last traded quantity
+        t.last_traded_qty = value(&bs[0..4]);
+        // 12 - 16 bytes : avg traded price
+        t.avg_traded_price = price(&bs[4..8], &t.exchange);
+        // 16 - 20 bytes : volume traded today
+        t.volume_traded = value(&bs[8..12]);
+        // 20 - 24 bytes : total buy quantity
+        t.total_buy_qty = value(&bs[12..16]);
+        // 24 - 28 bytes : total sell quantity
+        t.total_sell_qty = value(&bs[16..20]);
+        // 28 - 44 bytes : ohlc
+        t.ohlc = OHLC::from(&bs[20..36], &t.exchange);
+      }
     };
 
     let parse_full = |t: &mut Tick, i: &[u8], is_index: bool| {
@@ -114,25 +114,25 @@ impl Tick {
             value(bs).map(|x| Duration::from_secs(x.into()));
         }
       } else if let Some(bs) = i.get(44..184) {
-          t.mode = Mode::Full;
-          t.set_change();
+        t.mode = Mode::Full;
+        t.set_change();
 
-          // 44 - 48 bytes : last traded timestamp
-          t.last_traded_timestamp =
-            value(&bs[0..4]).map(|x| Duration::from_secs(x.into()));
+        // 44 - 48 bytes : last traded timestamp
+        t.last_traded_timestamp =
+          value(&bs[0..4]).map(|x| Duration::from_secs(x.into()));
 
-          // 48 - 52 bytes : oi
-          t.oi = value(&bs[4..8]);
-          // 52 - 56 bytes : oi day high
-          t.oi_day_high = value(&bs[8..12]);
-          // 56 - 60 bytes : oi day low
-          t.oi_day_low = value(&bs[12..16]);
-          // 60 - 64 bytes : exchange time
-          t.exchange_timestamp =
-            value(&bs[16..20]).map(|x| Duration::from_secs(x.into()));
-          // 64 - 184 bytes : market depth
-          t.depth = Depth::from(&bs[20..140], &t.exchange);
-        }
+        // 48 - 52 bytes : oi
+        t.oi = value(&bs[4..8]);
+        // 52 - 56 bytes : oi day high
+        t.oi_day_high = value(&bs[8..12]);
+        // 56 - 60 bytes : oi day low
+        t.oi_day_low = value(&bs[12..16]);
+        // 60 - 64 bytes : exchange time
+        t.exchange_timestamp =
+          value(&bs[16..20]).map(|x| Duration::from_secs(x.into()));
+        // 64 - 184 bytes : market depth
+        t.depth = Depth::from(&bs[20..140], &t.exchange);
+      }
     };
 
     parse_ltp(&mut tick, input);

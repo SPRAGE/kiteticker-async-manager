@@ -1,4 +1,6 @@
-use crate::models::{Mode, Request, TextMessage, Tick, TickMessage, TickerMessage};
+use crate::models::{
+  Mode, Request, TextMessage, Tick, TickMessage, TickerMessage,
+};
 use crate::parser::packet_length;
 use byteorder::{BigEndian, ByteOrder};
 use futures_util::{SinkExt, StreamExt};
@@ -65,12 +67,16 @@ impl KiteTickerAsync {
           }
           Err(e) => {
             // Send error and continue trying to read
-            let error_msg = TickerMessage::Error(format!("WebSocket error: {}", e));
+            let error_msg =
+              TickerMessage::Error(format!("WebSocket error: {}", e));
             let _ = msg_sender.send(error_msg);
-            
+
             // For critical errors, we might want to break the loop
-            if matches!(e, tokio_tungstenite::tungstenite::Error::ConnectionClosed | 
-                          tokio_tungstenite::tungstenite::Error::AlreadyClosed) {
+            if matches!(
+              e,
+              tokio_tungstenite::tungstenite::Error::ConnectionClosed
+                | tokio_tungstenite::tungstenite::Error::AlreadyClosed
+            ) {
               break;
             }
           }
@@ -135,8 +141,7 @@ impl KiteTickerAsync {
     let msgs = vec![
       Message::Text(Request::subscribe(instrument_tokens.to_vec()).to_string()),
       Message::Text(
-        Request::mode(mode_value, instrument_tokens.to_vec())
-          .to_string(),
+        Request::mode(mode_value, instrument_tokens.to_vec()).to_string(),
       ),
     ];
 
@@ -178,9 +183,15 @@ impl KiteTickerAsync {
 
   /// Check if the connection is still alive
   pub fn is_connected(&self) -> bool {
-    self.cmd_tx.is_some() && 
-    self.writer_handle.as_ref().is_some_and(|h| !h.is_finished()) &&
-    self.reader_handle.as_ref().is_some_and(|h| !h.is_finished())
+    self.cmd_tx.is_some()
+      && self
+        .writer_handle
+        .as_ref()
+        .is_some_and(|h| !h.is_finished())
+      && self
+        .reader_handle
+        .as_ref()
+        .is_some_and(|h| !h.is_finished())
   }
 
   /// Send a ping to keep the connection alive
@@ -234,7 +245,8 @@ impl KiteTickerSubscriber {
     } else {
       tokens
         .iter()
-        .filter(|t| self.subscribed_tokens.contains_key(t)).copied()
+        .filter(|t| self.subscribed_tokens.contains_key(t))
+        .copied()
         .collect::<Vec<_>>()
     }
   }
@@ -245,11 +257,9 @@ impl KiteTickerSubscriber {
     tokens: &[u32],
     mode: Option<Mode>,
   ) -> Result<(), String> {
-    self.subscribed_tokens.extend(
-      tokens
-        .iter()
-        .map(|t| (*t, mode.unwrap_or_default())),
-    );
+    self
+      .subscribed_tokens
+      .extend(tokens.iter().map(|t| (*t, mode.unwrap_or_default())));
     let tks = self.get_subscribed();
     self.ticker.subscribe_cmd(tks.as_slice(), None).await?;
     Ok(())
@@ -331,12 +341,16 @@ fn process_binary(binary_message: &[u8]) -> Option<TickerMessage> {
     let mut ticks = Vec::with_capacity(num_packets);
     for _ in 0..num_packets {
       if start + 2 > binary_message.len() {
-        return Some(TickerMessage::Error("Invalid packet structure".to_string()));
+        return Some(TickerMessage::Error(
+          "Invalid packet structure".to_string(),
+        ));
       }
       let packet_len = packet_length(&binary_message[start..start + 2]);
       let next_start = start + 2 + packet_len;
       if next_start > binary_message.len() {
-        return Some(TickerMessage::Error("Packet length exceeds message size".to_string()));
+        return Some(TickerMessage::Error(
+          "Packet length exceeds message size".to_string(),
+        ));
       }
       match Tick::try_from(&binary_message[start + 2..next_start]) {
         Ok(tick) => ticks.push(TickMessage::new(tick.instrument_token, tick)),

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::{Order, TextMessage, TickMessage};
+use serde::{Deserialize, Serialize};
 
 use super::text_message::TextMessageType;
 

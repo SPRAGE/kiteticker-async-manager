@@ -1,6 +1,8 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(
+  Debug, Clone, Copy, Default, PartialEq, Serialize_repr, Deserialize_repr,
+)]
 #[repr(u8)]
 ///
 /// Exchange options
@@ -50,21 +52,20 @@ impl From<usize> for Exchange {
 }
 
 impl From<String> for Exchange {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "NSE" => Self::NSE,
-            "NFO" => Self::NFO,
-            "CDS" => Self::CDS,
-            "BSE" => Self::BSE,
-            "BFO" => Self::BFO,
-            "BCD" => Self::BCD,
-            "MCX" => Self::MCX,
-            "MCXSX" => Self::MCXSX,
-            "INDICES" => Self::INDICES,
-            _ => Self::NSE,
-
-        }
+  fn from(value: String) -> Self {
+    match value.as_str() {
+      "NSE" => Self::NSE,
+      "NFO" => Self::NFO,
+      "CDS" => Self::CDS,
+      "BSE" => Self::BSE,
+      "BFO" => Self::BFO,
+      "BCD" => Self::BCD,
+      "MCX" => Self::MCX,
+      "MCXSX" => Self::MCXSX,
+      "INDICES" => Self::INDICES,
+      _ => Self::NSE,
     }
+  }
 }
 
 impl From<Exchange> for String {

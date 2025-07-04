@@ -1,7 +1,14 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(
-  Debug, Clone, Copy, Deserialize_repr, Serialize_repr, Default, PartialEq, PartialOrd,
+  Debug,
+  Clone,
+  Copy,
+  Deserialize_repr,
+  Serialize_repr,
+  Default,
+  PartialEq,
+  PartialOrd,
 )]
 #[repr(u8)]
 ///

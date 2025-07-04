@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::Tick;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 ///

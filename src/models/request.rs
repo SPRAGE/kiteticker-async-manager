@@ -102,8 +102,8 @@ impl Request {
 
 impl fmt::Display for Request {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let json = serde_json::to_string(self)
-      .expect("failed to serialize Request to JSON");
+    let json =
+      serde_json::to_string(self).expect("failed to serialize Request to JSON");
     write!(f, "{}", json)
   }
 }
