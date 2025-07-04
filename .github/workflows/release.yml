@@ -1,12 +1,13 @@
 name: Release Automation Template
 
 on:
-  push:
-    branches:
-      - main
-      - master
-      - 'v[0-9]+'  # Support major version branches (v1, v2, etc.)
-  workflow_dispatch:  # Allow manual trigger
+  # Disable automatic triggers since auto-release script handles everything
+  # push:
+  #   branches:
+  #     - main
+  #     - master
+  #     - 'v[0-9]+'  # Support major version branches (v1, v2, etc.)
+  workflow_dispatch:  # Allow manual trigger only
     inputs:
       version:
         description: 'Version to release (leave empty to use Cargo.toml version)'
