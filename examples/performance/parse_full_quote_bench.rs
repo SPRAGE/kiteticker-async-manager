@@ -1,7 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use kiteticker_async_manager::Tick;
 use std::time::Instant;
-
 // Base64 encoded mock full-quote packet from kiteconnect-mocks/ticker_full.packet
 const FULL_QUOTE_B64: &str =
   include_str!("../../kiteconnect-mocks/ticker_full.packet");

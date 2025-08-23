@@ -30,7 +30,7 @@
 //! Using the builder:
 //!
 //! ```rust,no_run
-//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, TickerMessage};
+//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode};
 //! #[tokio::main]
 //! async fn main() -> Result<(), String> {
 //!   let api_key = std::env::var("KITE_API_KEY").unwrap();
@@ -110,7 +110,7 @@
 //!     let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
 //!     
 //!     // Connect to WebSocket
-//!     let ticker = KiteTickerAsync::connect(&api_key, &access_token).await?;
+//!     let mut ticker = KiteTickerAsync::connect(&api_key, &access_token).await?;
 //!     
 //!     // Subscribe to symbols
 //!     let symbols = vec![256265, 408065]; // NIFTY 50, HDFC Bank
