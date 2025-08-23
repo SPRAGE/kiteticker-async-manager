@@ -69,8 +69,9 @@ if ! cargo test --doc --all-features; then
 fi
 print_status "Doc tests passed"
 
-echo "📖 Checking documentation..."
-if ! cargo doc --no-deps --all-features --document-private-items; then
+echo "📖 Checking documentation (lib, all features, private items)..."
+# Build comprehensive docs for the library target only to avoid known Cargo resolver panics
+if ! cargo doc --no-deps --lib --all-features --document-private-items; then
     print_error "Documentation build failed!"
     exit 1
 fi

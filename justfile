@@ -1,4 +1,4 @@
-cargo-doc-command := "cargo doc --no-deps"
+cargo-doc-command := "cargo doc --no-deps --lib --all-features --document-private-items"
 
 check:
   cargo check
