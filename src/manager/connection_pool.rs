@@ -24,7 +24,8 @@ pub struct ManagedConnection {
   // Store credentials for dynamic operations
   api_key: String,
   access_token: String,
-  pub(crate) cmd_tx: Option<mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>>,
+  pub(crate) cmd_tx:
+    Option<mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>>,
 }
 
 impl ManagedConnection {
@@ -49,7 +50,7 @@ impl ManagedConnection {
       message_sender,
       api_key: String::new(),
       access_token: String::new(),
-  cmd_tx: None,
+      cmd_tx: None,
     }
   }
 
@@ -73,8 +74,8 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-  self.cmd_tx = ticker.command_sender();
-  self.ticker = Some(ticker);
+    self.cmd_tx = ticker.command_sender();
+    self.ticker = Some(ticker);
     self.is_healthy.store(true, Ordering::Relaxed);
 
     // Update stats
@@ -99,7 +100,11 @@ impl ManagedConnection {
     self.access_token = access_token.to_string();
     let ticker = tokio::time::timeout(
       config.connection_timeout,
-      crate::ticker::KiteTickerAsync::connect_with_options(api_key, access_token, raw_only),
+      crate::ticker::KiteTickerAsync::connect_with_options(
+        api_key,
+        access_token,
+        raw_only,
+      ),
     )
     .await
     .map_err(|_| "Connection timeout".to_string())?
@@ -107,7 +112,9 @@ impl ManagedConnection {
 
     self.cmd_tx = ticker.command_sender();
     self.ticker = Some(ticker);
-    self.is_healthy.store(true, std::sync::atomic::Ordering::Relaxed);
+    self
+      .is_healthy
+      .store(true, std::sync::atomic::Ordering::Relaxed);
     {
       let mut stats = self.stats.write().await;
       stats.is_connected = true;
@@ -126,7 +133,9 @@ impl ManagedConnection {
       // Use the existing ticker directly
       let subscriber = ticker.subscribe(symbols, Some(mode)).await?;
       // Track symbols
-      for &symbol in symbols { self.subscribed_symbols.insert(symbol, mode); }
+      for &symbol in symbols {
+        self.subscribed_symbols.insert(symbol, mode);
+      }
       self.subscriber = Some(subscriber);
 
       // Update stats
@@ -149,20 +158,36 @@ impl ManagedConnection {
   ) -> Result<(), String> {
     if self.subscriber.is_some() {
       // Filter to truly new symbols
-      let new: Vec<u32> = symbols.iter().copied().filter(|s| !self.subscribed_symbols.contains_key(s)).collect();
-      if new.is_empty() { return Ok(()); }
+      let new: Vec<u32> = symbols
+        .iter()
+        .copied()
+        .filter(|s| !self.subscribed_symbols.contains_key(s))
+        .collect();
+      if new.is_empty() {
+        return Ok(());
+      }
       if let Some(tx) = &self.cmd_tx {
         // send subscribe + mode
         let sub = crate::models::Request::subscribe(&new).to_string();
         let mode_msg = crate::models::Request::mode(mode, &new).to_string();
         let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(sub));
-        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(mode_msg));
+        let _ =
+          tx.send(tokio_tungstenite::tungstenite::Message::Text(mode_msg));
       }
-      for &s in &new { self.subscribed_symbols.insert(s, mode); }
-      let mut stats = self.stats.write().await; stats.symbol_count = self.subscribed_symbols.len();
-      log::info!("Incrementally subscribed {} symbols on connection {}", new.len(), self.id.to_index());
+      for &s in &new {
+        self.subscribed_symbols.insert(s, mode);
+      }
+      let mut stats = self.stats.write().await;
+      stats.symbol_count = self.subscribed_symbols.len();
+      log::info!(
+        "Incrementally subscribed {} symbols on connection {}",
+        new.len(),
+        self.id.to_index()
+      );
       Ok(())
-    } else { self.subscribe_symbols(symbols, mode).await }
+    } else {
+      self.subscribe_symbols(symbols, mode).await
+    }
   }
 
   /// Dynamically remove symbols from existing subscription
@@ -172,17 +197,32 @@ impl ManagedConnection {
   ) -> Result<(), String> {
     if self.subscriber.is_some() {
       // Only symbols currently subscribed
-      let existing: Vec<u32> = symbols.iter().copied().filter(|s| self.subscribed_symbols.contains_key(s)).collect();
-      if existing.is_empty() { return Ok(()); }
+      let existing: Vec<u32> = symbols
+        .iter()
+        .copied()
+        .filter(|s| self.subscribed_symbols.contains_key(s))
+        .collect();
+      if existing.is_empty() {
+        return Ok(());
+      }
       if let Some(tx) = &self.cmd_tx {
         let unsub = crate::models::Request::unsubscribe(&existing).to_string();
         let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(unsub));
       }
-      for s in &existing { self.subscribed_symbols.remove(s); }
-      let mut stats = self.stats.write().await; stats.symbol_count = self.subscribed_symbols.len();
-      log::info!("Incrementally unsubscribed {} symbols on connection {}", existing.len(), self.id.to_index());
+      for s in &existing {
+        self.subscribed_symbols.remove(s);
+      }
+      let mut stats = self.stats.write().await;
+      stats.symbol_count = self.subscribed_symbols.len();
+      log::info!(
+        "Incrementally unsubscribed {} symbols on connection {}",
+        existing.len(),
+        self.id.to_index()
+      );
       Ok(())
-    } else { Err("No active subscription to remove symbols from".to_string()) }
+    } else {
+      Err("No active subscription to remove symbols from".to_string())
+    }
   }
 
   /// Start message processing for the subscriber
@@ -219,9 +259,9 @@ impl ManagedConnection {
     is_healthy: Arc<AtomicBool>,
     connection_id: ChannelId,
   ) {
-  let mut last_message_time = Instant::now();
-  let mut last_stats_flush = Instant::now();
-  let mut pending_messages: u64 = 0;
+    let mut last_message_time = Instant::now();
+    let mut last_stats_flush = Instant::now();
+    let mut pending_messages: u64 = 0;
 
     log::info!(
       "Starting message processing loop for connection {}",

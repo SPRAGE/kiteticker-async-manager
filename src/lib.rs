@@ -191,6 +191,7 @@ pub use models::{
 
 pub mod ticker;
 pub use manager::{
-  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager, KiteTickerManagerBuilder, ManagerStats,
+  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager,
+  KiteTickerManagerBuilder, ManagerStats,
 };
 pub use ticker::{KiteTickerAsync, KiteTickerSubscriber};

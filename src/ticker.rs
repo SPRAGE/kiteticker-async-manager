@@ -1,11 +1,13 @@
-use crate::models::{Mode, Request, TextMessage, Tick, TickMessage, TickerMessage};
-use smallvec::SmallVec;
+use crate::models::{
+  Mode, Request, TextMessage, Tick, TickMessage, TickerMessage,
+};
 use crate::parser::packet_length;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
+use smallvec::SmallVec;
 use std::collections::HashMap;
-use tokio::sync::{broadcast, mpsc};
 use std::sync::Arc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -54,8 +56,8 @@ impl KiteTickerAsync {
 
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
     // Increase buffer size for high-frequency tick data
-  let (msg_tx, _) = broadcast::channel(1000);
-  let (raw_tx, _) = broadcast::channel(1000);
+    let (msg_tx, _) = broadcast::channel(1000);
+    let (raw_tx, _) = broadcast::channel(1000);
     let mut write = write_half;
     let writer_handle = tokio::spawn(async move {
       while let Some(msg) = cmd_rx.recv().await {
@@ -81,7 +83,8 @@ impl KiteTickerAsync {
           }
           Err(e) => {
             // Send error and continue trying to read
-            let error_msg = TickerMessage::Error(format!("WebSocket error: {}", e));
+            let error_msg =
+              TickerMessage::Error(format!("WebSocket error: {}", e));
             let _ = msg_sender_for_reader.send(error_msg);
             if matches!(
               e,
@@ -101,7 +104,9 @@ impl KiteTickerAsync {
     let parser_handle = tokio::spawn(async move {
       let raw_only_mode = raw_only; // capture
       while let Some(msg) = parse_rx.recv().await {
-        if let Some(processed) = process_message(msg, &raw_sender, raw_only_mode) {
+        if let Some(processed) =
+          process_message(msg, &raw_sender, raw_only_mode)
+        {
           let _ = msg_sender.send(processed);
         }
       }
@@ -111,20 +116,22 @@ impl KiteTickerAsync {
       api_key: api_key.to_string(),
       access_token: access_token.to_string(),
       cmd_tx: Some(cmd_tx),
-  msg_tx,
-  raw_tx,
+      msg_tx,
+      raw_tx,
       raw_only,
       writer_handle: Some(writer_handle),
-  reader_handle: Some(reader_handle),
-  parser_handle: Some(parser_handle),
+      reader_handle: Some(reader_handle),
+      parser_handle: Some(parser_handle),
     })
   }
 
   /// Subscribes the client to a list of instruments
-  pub async fn subscribe(&mut self, instrument_tokens: &[u32], mode: Option<Mode>) -> Result<KiteTickerSubscriber, String> {
-    self
-      .subscribe_cmd(instrument_tokens, mode.as_ref())
-      .await?;
+  pub async fn subscribe(
+    &mut self,
+    instrument_tokens: &[u32],
+    mode: Option<Mode>,
+  ) -> Result<KiteTickerSubscriber, String> {
+    self.subscribe_cmd(instrument_tokens, mode.as_ref()).await?;
     let default_mode = mode.unwrap_or_default();
     let st = instrument_tokens
       .iter()
@@ -132,7 +139,11 @@ impl KiteTickerAsync {
       .collect();
 
     let rx = self.msg_tx.subscribe();
-  Ok(KiteTickerSubscriber { subscribed_tokens: st, rx, cmd_tx: self.cmd_tx.as_ref().map(|s| Arc::new(s.clone())) })
+    Ok(KiteTickerSubscriber {
+      subscribed_tokens: st,
+      rx,
+      cmd_tx: self.cmd_tx.as_ref().map(|s| Arc::new(s.clone())),
+    })
   }
 
   /// Close the websocket connection
@@ -210,7 +221,9 @@ impl KiteTickerAsync {
   }
 
   /// Subscribe to raw binary frames (zero-copy). Each item is an Arc<[u8]> of the full tungstenite binary frame.
-  pub fn subscribe_raw(&self) -> broadcast::Receiver<Arc<[u8]>> { self.raw_tx.subscribe() }
+  pub fn subscribe_raw(&self) -> broadcast::Receiver<Arc<[u8]>> {
+    self.raw_tx.subscribe()
+  }
 
   /// Get a clone of the internal command sender for incremental ops
   pub fn command_sender(&self) -> Option<mpsc::UnboundedSender<Message>> {
@@ -268,11 +281,18 @@ impl KiteTickerSubscriber {
         new_tokens.push(t);
       }
     }
-    if new_tokens.is_empty() { return Ok(()); }
+    if new_tokens.is_empty() {
+      return Ok(());
+    }
     if let Some(tx) = &self.cmd_tx {
       // send subscribe
-      let _ = tx.send(Message::Text(Request::subscribe(&new_tokens).to_string()));
-      if mode.is_some() { let _ = tx.send(Message::Text(Request::mode(default_mode, &new_tokens).to_string())); }
+      let _ =
+        tx.send(Message::Text(Request::subscribe(&new_tokens).to_string()));
+      if mode.is_some() {
+        let _ = tx.send(Message::Text(
+          Request::mode(default_mode, &new_tokens).to_string(),
+        ));
+      }
     }
     Ok(())
   }
@@ -283,10 +303,14 @@ impl KiteTickerSubscriber {
     instrument_tokens: &[u32],
     mode: Mode,
   ) -> Result<(), String> {
-  let tokens = self.get_subscribed_or(instrument_tokens);
-  if tokens.is_empty() { return Ok(()); }
-  if let Some(tx) = &self.cmd_tx { let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string())); }
-  Ok(())
+    let tokens = self.get_subscribed_or(instrument_tokens);
+    if tokens.is_empty() {
+      return Ok(());
+    }
+    if let Some(tx) = &self.cmd_tx {
+      let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string()));
+    }
+    Ok(())
   }
 
   /// Unsubscribe provided subscribed tokens, if input is empty then all subscribed tokens will unsubscribed
@@ -296,11 +320,15 @@ impl KiteTickerSubscriber {
     &mut self,
     instrument_tokens: &[u32],
   ) -> Result<(), String> {
-  let tokens = self.get_subscribed_or(instrument_tokens);
-  if tokens.is_empty() { return Ok(()); }
-  if let Some(tx) = &self.cmd_tx { let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string())); }
-  self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
-  Ok(())
+    let tokens = self.get_subscribed_or(instrument_tokens);
+    if tokens.is_empty() {
+      return Ok(());
+    }
+    if let Some(tx) = &self.cmd_tx {
+      let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string()));
+    }
+    self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
+    Ok(())
   }
 
   /// Get the next message from the server, waiting if necessary.
@@ -315,10 +343,16 @@ impl KiteTickerSubscriber {
     }
   }
 
-  pub async fn close(&mut self) -> Result<(), String> { Ok(()) }
+  pub async fn close(&mut self) -> Result<(), String> {
+    Ok(())
+  }
 }
 
-fn process_message(message: Message, raw_sender: &broadcast::Sender<Arc<[u8]>>, raw_only: bool) -> Option<TickerMessage> {
+fn process_message(
+  message: Message,
+  raw_sender: &broadcast::Sender<Arc<[u8]>>,
+  raw_only: bool,
+) -> Option<TickerMessage> {
   match message {
     Message::Text(text_message) => process_text_message(text_message),
     Message::Binary(binary_message) => {
@@ -330,7 +364,11 @@ fn process_message(message: Message, raw_sender: &broadcast::Sender<Arc<[u8]>>, 
       if raw_only {
         return Some(TickerMessage::Raw(arc.to_vec()));
       }
-      if slice.len() < 2 { Some(TickerMessage::Ticks(vec![])) } else { process_binary(slice) }
+      if slice.len() < 2 {
+        Some(TickerMessage::Ticks(vec![]))
+      } else {
+        process_binary(slice)
+      }
     }
     Message::Close(closing_message) => closing_message.map(|c| {
       TickerMessage::ClosingMessage(json!({
@@ -348,12 +386,14 @@ fn process_binary(binary_message: &[u8]) -> Option<TickerMessage> {
   if binary_message.len() < 2 {
     return None;
   }
-  let num_packets = u16::from_be_bytes([binary_message[0], binary_message[1]]) as usize;
+  let num_packets =
+    u16::from_be_bytes([binary_message[0], binary_message[1]]) as usize;
   if num_packets > 0 {
-  let mut start = 2;
-  // Inline small optimization: most frames contain modest number of ticks
-  let mut ticks: SmallVec<[TickMessage; 32]> = SmallVec::with_capacity(num_packets.min(32));
-  let mut had_error = false;
+    let mut start = 2;
+    // Inline small optimization: most frames contain modest number of ticks
+    let mut ticks: SmallVec<[TickMessage; 32]> =
+      SmallVec::with_capacity(num_packets.min(32));
+    let mut had_error = false;
     for _ in 0..num_packets {
       if start + 2 > binary_message.len() {
         had_error = true;
@@ -374,13 +414,15 @@ fn process_binary(binary_message: &[u8]) -> Option<TickerMessage> {
       }
       start = next_start;
     }
-  if !ticks.is_empty() {
-    Some(TickerMessage::Ticks(ticks.into_vec()))
-  } else if had_error {
-    Some(TickerMessage::Error("Failed to parse tick(s) in frame".to_string()))
-  } else {
-    None
-  }
+    if !ticks.is_empty() {
+      Some(TickerMessage::Ticks(ticks.into_vec()))
+    } else if had_error {
+      Some(TickerMessage::Error(
+        "Failed to parse tick(s) in frame".to_string(),
+      ))
+    } else {
+      None
+    }
   } else {
     None
   }

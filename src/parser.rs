@@ -24,7 +24,8 @@ pub(crate) fn value_short(input: &[u8]) -> Option<u16> {
 #[inline(always)]
 pub(crate) fn price(input: &[u8], exchange: &Exchange) -> Option<f64> {
   if input.len() >= 4 && exchange.divisor() > 0_f64 {
-    let value = i32::from_be_bytes([input[0], input[1], input[2], input[3]]) as f64;
+    let value =
+      i32::from_be_bytes([input[0], input[1], input[2], input[3]]) as f64;
     Some(value.div(exchange.divisor()))
   } else {
     None
