@@ -1,12 +1,11 @@
-use crate::models::{
-  Mode, Request, TextMessage, Tick, TickMessage, TickerMessage,
-};
+use crate::models::{Mode, Request, TextMessage, Tick, TickMessage, TickerMessage};
+use smallvec::SmallVec;
 use crate::parser::packet_length;
-use byteorder::{BigEndian, ByteOrder};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::collections::HashMap;
 use tokio::sync::{broadcast, mpsc};
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -21,8 +20,11 @@ pub struct KiteTickerAsync {
   access_token: String,
   cmd_tx: Option<mpsc::UnboundedSender<Message>>,
   msg_tx: broadcast::Sender<TickerMessage>,
+  raw_tx: broadcast::Sender<Arc<[u8]>>, // raw binary frames
+  raw_only: bool, // if true, skip parsing and emit raw frames as TickerMessage::Raw
   writer_handle: Option<JoinHandle<()>>,
   reader_handle: Option<JoinHandle<()>>,
+  parser_handle: Option<JoinHandle<()>>,
 }
 
 impl KiteTickerAsync {
@@ -30,6 +32,15 @@ impl KiteTickerAsync {
   pub async fn connect(
     api_key: &str,
     access_token: &str,
+  ) -> Result<Self, String> {
+    Self::connect_with_options(api_key, access_token, false).await
+  }
+
+  /// Connect with options
+  pub async fn connect_with_options(
+    api_key: &str,
+    access_token: &str,
+    raw_only: bool,
   ) -> Result<Self, String> {
     let socket_url = format!(
       "wss://{}?api_key={}&access_token={}",
@@ -43,7 +54,8 @@ impl KiteTickerAsync {
 
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
     // Increase buffer size for high-frequency tick data
-    let (msg_tx, _) = broadcast::channel(1000);
+  let (msg_tx, _) = broadcast::channel(1000);
+  let (raw_tx, _) = broadcast::channel(1000);
     let mut write = write_half;
     let writer_handle = tokio::spawn(async move {
       while let Some(msg) = cmd_rx.recv().await {
@@ -53,25 +65,24 @@ impl KiteTickerAsync {
       }
     });
 
-    let msg_sender = msg_tx.clone();
+    // Channel to decouple read and parse so the websocket stream isn't blocked by parsing
+    let (parse_tx, mut parse_rx) = mpsc::unbounded_channel::<Message>();
+
+    // Reader: only forward messages into parse channel, avoid heavy work here
+    let msg_sender_for_reader = msg_tx.clone();
     let reader_handle = tokio::spawn(async move {
       while let Some(message) = read_half.next().await {
         match message {
           Ok(msg) => {
-            // Process message and send result if successful
-            if let Some(processed_msg) = process_message(msg) {
-              // Send to broadcast channel, continue even if no receivers are present
-              // This prevents race conditions where WebSocket receives messages before subscribers are created
-              let _ = msg_sender.send(processed_msg);
+            // Forward to parser; if parser is gone, exit
+            if parse_tx.send(msg).is_err() {
+              break;
             }
           }
           Err(e) => {
             // Send error and continue trying to read
-            let error_msg =
-              TickerMessage::Error(format!("WebSocket error: {}", e));
-            let _ = msg_sender.send(error_msg);
-
-            // For critical errors, we might want to break the loop
+            let error_msg = TickerMessage::Error(format!("WebSocket error: {}", e));
+            let _ = msg_sender_for_reader.send(error_msg);
             if matches!(
               e,
               tokio_tungstenite::tungstenite::Error::ConnectionClosed
@@ -84,26 +95,36 @@ impl KiteTickerAsync {
       }
     });
 
+    // Parser: processes messages from the channel and publishes results
+    let msg_sender = msg_tx.clone();
+    let raw_sender = raw_tx.clone();
+    let parser_handle = tokio::spawn(async move {
+      let raw_only_mode = raw_only; // capture
+      while let Some(msg) = parse_rx.recv().await {
+        if let Some(processed) = process_message(msg, &raw_sender, raw_only_mode) {
+          let _ = msg_sender.send(processed);
+        }
+      }
+    });
+
     Ok(KiteTickerAsync {
       api_key: api_key.to_string(),
       access_token: access_token.to_string(),
       cmd_tx: Some(cmd_tx),
-      msg_tx,
+  msg_tx,
+  raw_tx,
+      raw_only,
       writer_handle: Some(writer_handle),
-      reader_handle: Some(reader_handle),
+  reader_handle: Some(reader_handle),
+  parser_handle: Some(parser_handle),
     })
   }
 
   /// Subscribes the client to a list of instruments
-  pub async fn subscribe(
-    mut self,
-    instrument_tokens: &[u32],
-    mode: Option<Mode>,
-  ) -> Result<KiteTickerSubscriber, String> {
+  pub async fn subscribe(&mut self, instrument_tokens: &[u32], mode: Option<Mode>) -> Result<KiteTickerSubscriber, String> {
     self
       .subscribe_cmd(instrument_tokens, mode.as_ref())
-      .await
-      .expect("failed to subscribe");
+      .await?;
     let default_mode = mode.unwrap_or_default();
     let st = instrument_tokens
       .iter()
@@ -111,11 +132,7 @@ impl KiteTickerAsync {
       .collect();
 
     let rx = self.msg_tx.subscribe();
-    Ok(KiteTickerSubscriber {
-      ticker: self,
-      subscribed_tokens: st,
-      rx,
-    })
+  Ok(KiteTickerSubscriber { subscribed_tokens: st, rx, cmd_tx: self.cmd_tx.as_ref().map(|s| Arc::new(s.clone())) })
   }
 
   /// Close the websocket connection
@@ -129,6 +146,9 @@ impl KiteTickerAsync {
     if let Some(handle) = self.reader_handle.take() {
       handle.await.map_err(|e| e.to_string())?;
     }
+    if let Some(handle) = self.parser_handle.take() {
+      handle.await.map_err(|e| e.to_string())?;
+    }
     Ok(())
   }
 
@@ -139,10 +159,8 @@ impl KiteTickerAsync {
   ) -> Result<(), String> {
     let mode_value = mode.cloned().unwrap_or_default();
     let msgs = vec![
-      Message::Text(Request::subscribe(instrument_tokens.to_vec()).to_string()),
-      Message::Text(
-        Request::mode(mode_value, instrument_tokens.to_vec()).to_string(),
-      ),
+      Message::Text(Request::subscribe(instrument_tokens).to_string()),
+      Message::Text(Request::mode(mode_value, instrument_tokens).to_string()),
     ];
 
     for msg in msgs {
@@ -154,32 +172,7 @@ impl KiteTickerAsync {
     Ok(())
   }
 
-  async fn unsubscribe_cmd(
-    &mut self,
-    instrument_tokens: &[u32],
-  ) -> Result<(), String> {
-    if let Some(tx) = &self.cmd_tx {
-      tx.send(Message::Text(
-        Request::unsubscribe(instrument_tokens.to_vec()).to_string(),
-      ))
-      .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-  }
-
-  async fn set_mode_cmd(
-    &mut self,
-    instrument_tokens: &[u32],
-    mode: Mode,
-  ) -> Result<(), String> {
-    if let Some(tx) = &self.cmd_tx {
-      tx.send(Message::Text(
-        Request::mode(mode, instrument_tokens.to_vec()).to_string(),
-      ))
-      .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-  }
+  // internal helpers removed after refactor; operations now issued via subscriber command handle
 
   /// Check if the connection is still alive
   pub fn is_connected(&self) -> bool {
@@ -215,6 +208,14 @@ impl KiteTickerAsync {
     // but we can estimate based on our configuration
     1000 // This matches our increased buffer size
   }
+
+  /// Subscribe to raw binary frames (zero-copy). Each item is an Arc<[u8]> of the full tungstenite binary frame.
+  pub fn subscribe_raw(&self) -> broadcast::Receiver<Arc<[u8]>> { self.raw_tx.subscribe() }
+
+  /// Get a clone of the internal command sender for incremental ops
+  pub fn command_sender(&self) -> Option<mpsc::UnboundedSender<Message>> {
+    self.cmd_tx.as_ref().map(|s| s.clone())
+  }
 }
 
 #[derive(Debug)]
@@ -222,9 +223,10 @@ impl KiteTickerAsync {
 /// The Websocket client that entered in a pub/sub mode once the client subscribed to a list of instruments
 ///
 pub struct KiteTickerSubscriber {
-  ticker: KiteTickerAsync,
+  // Now independent of owning the ticker; commands go through channel retained in KiteTickerAsync
   subscribed_tokens: HashMap<u32, Mode>,
   rx: broadcast::Receiver<TickerMessage>,
+  cmd_tx: Option<Arc<mpsc::UnboundedSender<Message>>>,
 }
 
 impl KiteTickerSubscriber {
@@ -257,11 +259,21 @@ impl KiteTickerSubscriber {
     tokens: &[u32],
     mode: Option<Mode>,
   ) -> Result<(), String> {
-    self
-      .subscribed_tokens
-      .extend(tokens.iter().map(|t| (*t, mode.unwrap_or_default())));
-    let tks = self.get_subscribed();
-    self.ticker.subscribe_cmd(tks.as_slice(), None).await?;
+    // Only send incremental subscribe for new tokens
+    let default_mode = mode.unwrap_or_default();
+    let mut new_tokens: Vec<u32> = Vec::new();
+    for &t in tokens {
+      if !self.subscribed_tokens.contains_key(&t) {
+        self.subscribed_tokens.insert(t, default_mode);
+        new_tokens.push(t);
+      }
+    }
+    if new_tokens.is_empty() { return Ok(()); }
+    if let Some(tx) = &self.cmd_tx {
+      // send subscribe
+      let _ = tx.send(Message::Text(Request::subscribe(&new_tokens).to_string()));
+      if mode.is_some() { let _ = tx.send(Message::Text(Request::mode(default_mode, &new_tokens).to_string())); }
+    }
     Ok(())
   }
 
@@ -271,8 +283,10 @@ impl KiteTickerSubscriber {
     instrument_tokens: &[u32],
     mode: Mode,
   ) -> Result<(), String> {
-    let tokens = self.get_subscribed_or(instrument_tokens);
-    self.ticker.set_mode_cmd(tokens.as_slice(), mode).await
+  let tokens = self.get_subscribed_or(instrument_tokens);
+  if tokens.is_empty() { return Ok(()); }
+  if let Some(tx) = &self.cmd_tx { let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string())); }
+  Ok(())
   }
 
   /// Unsubscribe provided subscribed tokens, if input is empty then all subscribed tokens will unsubscribed
@@ -282,14 +296,11 @@ impl KiteTickerSubscriber {
     &mut self,
     instrument_tokens: &[u32],
   ) -> Result<(), String> {
-    let tokens = self.get_subscribed_or(instrument_tokens);
-    match self.ticker.unsubscribe_cmd(tokens.as_slice()).await {
-      Ok(_) => {
-        self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
-        Ok(())
-      }
-      Err(e) => Err(e),
-    }
+  let tokens = self.get_subscribed_or(instrument_tokens);
+  if tokens.is_empty() { return Ok(()); }
+  if let Some(tx) = &self.cmd_tx { let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string())); }
+  self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
+  Ok(())
   }
 
   /// Get the next message from the server, waiting if necessary.
@@ -304,20 +315,22 @@ impl KiteTickerSubscriber {
     }
   }
 
-  pub async fn close(&mut self) -> Result<(), String> {
-    self.ticker.close().await
-  }
+  pub async fn close(&mut self) -> Result<(), String> { Ok(()) }
 }
 
-fn process_message(message: Message) -> Option<TickerMessage> {
+fn process_message(message: Message, raw_sender: &broadcast::Sender<Arc<[u8]>>, raw_only: bool) -> Option<TickerMessage> {
   match message {
     Message::Text(text_message) => process_text_message(text_message),
-    Message::Binary(ref binary_message) => {
-      if binary_message.len() < 2 {
-        Some(TickerMessage::Ticks(vec![]))
-      } else {
-        process_binary(binary_message.as_slice())
+    Message::Binary(binary_message) => {
+      // Convert once to Arc<[u8]> to avoid cloning the Vec for raw subscribers
+      let arc = Arc::<[u8]>::from(binary_message.into_boxed_slice());
+      let slice: &[u8] = &arc;
+      // publish raw first (cheap arc clone)
+      let _ = raw_sender.send(arc.clone());
+      if raw_only {
+        return Some(TickerMessage::Raw(arc.to_vec()));
       }
+      if slice.len() < 2 { Some(TickerMessage::Ticks(vec![])) } else { process_binary(slice) }
     }
     Message::Close(closing_message) => closing_message.map(|c| {
       TickerMessage::ClosingMessage(json!({
@@ -325,9 +338,9 @@ fn process_message(message: Message) -> Option<TickerMessage> {
         "reason": c.reason.to_string()
       }))
     }),
-    Message::Ping(_) => None, // Handled automatically by tungstenite
-    Message::Pong(_) => None, // Handled automatically by tungstenite
-    Message::Frame(_) => None, // Low-level frame, usually not needed
+    Message::Ping(_) => None,
+    Message::Pong(_) => None,
+    Message::Frame(_) => None,
   }
 }
 
@@ -335,30 +348,39 @@ fn process_binary(binary_message: &[u8]) -> Option<TickerMessage> {
   if binary_message.len() < 2 {
     return None;
   }
-  let num_packets = BigEndian::read_u16(&binary_message[0..2]) as usize;
+  let num_packets = u16::from_be_bytes([binary_message[0], binary_message[1]]) as usize;
   if num_packets > 0 {
-    let mut start = 2;
-    let mut ticks = Vec::with_capacity(num_packets);
+  let mut start = 2;
+  // Inline small optimization: most frames contain modest number of ticks
+  let mut ticks: SmallVec<[TickMessage; 32]> = SmallVec::with_capacity(num_packets.min(32));
+  let mut had_error = false;
     for _ in 0..num_packets {
       if start + 2 > binary_message.len() {
-        return Some(TickerMessage::Error(
-          "Invalid packet structure".to_string(),
-        ));
+        had_error = true;
+        break;
       }
       let packet_len = packet_length(&binary_message[start..start + 2]);
       let next_start = start + 2 + packet_len;
       if next_start > binary_message.len() {
-        return Some(TickerMessage::Error(
-          "Packet length exceeds message size".to_string(),
-        ));
+        had_error = true;
+        break;
       }
       match Tick::try_from(&binary_message[start + 2..next_start]) {
         Ok(tick) => ticks.push(TickMessage::new(tick.instrument_token, tick)),
-        Err(e) => return Some(TickerMessage::Error(e.to_string())),
+        Err(_e) => {
+          // Skip this packet, continue with others
+          had_error = true;
+        }
       }
       start = next_start;
     }
-    Some(TickerMessage::Ticks(ticks))
+  if !ticks.is_empty() {
+    Some(TickerMessage::Ticks(ticks.into_vec()))
+  } else if had_error {
+    Some(TickerMessage::Error("Failed to parse tick(s) in frame".to_string()))
+  } else {
+    None
+  }
   } else {
     None
   }

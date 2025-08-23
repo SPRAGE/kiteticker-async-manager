@@ -10,6 +10,8 @@ use super::text_message::TextMessageType;
 pub enum TickerMessage {
   /// Quote packets for subscribed tokens
   Ticks(Vec<TickMessage>),
+  /// Raw binary frame (when raw-only mode enabled)
+  Raw(Vec<u8>),
   /// Error response
   Error(String),
   /// Order postback

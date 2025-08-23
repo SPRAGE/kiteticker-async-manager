@@ -18,13 +18,13 @@ enum RequestActions {
 ///
 /// Websocket request data
 ///
-enum RequestData {
-  InstrumentTokens(Vec<u32>),
-  InstrumentTokensWithMode(Mode, Vec<u32>),
+enum RequestData<'a> {
+  InstrumentTokens(&'a [u32]),
+  InstrumentTokensWithMode(Mode, &'a [u32]),
 }
 
 // Custom serialization for RequestData
-impl serde::Serialize for RequestData {
+impl<'a> serde::Serialize for RequestData<'a> {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: serde::Serializer,
@@ -42,7 +42,7 @@ impl serde::Serialize for RequestData {
 }
 
 // We don't need custom deserialization for RequestData since it's only used for sending
-impl<'de> serde::Deserialize<'de> for RequestData {
+impl<'de, 'a> serde::Deserialize<'de> for RequestData<'a> {
   fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
   where
     D: serde::Deserializer<'de>,
@@ -56,13 +56,13 @@ impl<'de> serde::Deserialize<'de> for RequestData {
 ///
 /// Websocket request structure
 ///
-pub struct Request {
+pub struct Request<'a> {
   a: RequestActions,
-  v: RequestData,
+  v: RequestData<'a>,
 }
 
-impl Request {
-  fn new(action: RequestActions, value: RequestData) -> Request {
+impl<'a> Request<'a> {
+  fn new(action: RequestActions, value: RequestData<'a>) -> Request<'a> {
     Request {
       a: action,
       v: value,
@@ -72,7 +72,7 @@ impl Request {
   ///
   /// Subscribe to a list of instrument tokens
   ///
-  pub fn subscribe(instrument_tokens: Vec<u32>) -> Request {
+  pub fn subscribe(instrument_tokens: &'a [u32]) -> Request<'a> {
     Request::new(
       RequestActions::Subscribe,
       RequestData::InstrumentTokens(instrument_tokens),
@@ -82,7 +82,7 @@ impl Request {
   ///
   /// Subscribe to a list of instrument tokens with mode
   ///
-  pub fn mode(mode: Mode, instrument_tokens: Vec<u32>) -> Request {
+  pub fn mode(mode: Mode, instrument_tokens: &'a [u32]) -> Request<'a> {
     Request::new(
       RequestActions::Mode,
       RequestData::InstrumentTokensWithMode(mode, instrument_tokens),
@@ -92,7 +92,7 @@ impl Request {
   ///
   /// Unsubscribe from a list of instrument tokens
   ///
-  pub fn unsubscribe(instrument_tokens: Vec<u32>) -> Request {
+  pub fn unsubscribe(instrument_tokens: &'a [u32]) -> Request<'a> {
     Request::new(
       RequestActions::Unsubscribe,
       RequestData::InstrumentTokens(instrument_tokens),
@@ -100,7 +100,7 @@ impl Request {
   }
 }
 
-impl fmt::Display for Request {
+impl<'a> fmt::Display for Request<'a> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let json =
       serde_json::to_string(self).expect("failed to serialize Request to JSON");

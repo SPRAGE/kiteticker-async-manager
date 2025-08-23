@@ -57,6 +57,42 @@ pub struct KiteTickerManager {
   /// Manager start time for uptime tracking
   #[allow(dead_code)]
   start_time: Instant,
+  /// If true, underlying connections operate in raw-only mode (no tick parsing)
+  raw_only: bool,
+}
+
+/// Builder for `KiteTickerManager` providing a fluent API for configuration.
+#[derive(Debug, Clone)]
+pub struct KiteTickerManagerBuilder {
+  api_key: String,
+  access_token: String,
+  config: KiteManagerConfig,
+  raw_only: bool,
+}
+
+impl KiteTickerManagerBuilder {
+  /// Create a new builder with mandatory credentials and default config
+  pub fn new(api_key: impl Into<String>, access_token: impl Into<String>) -> Self {
+    Self { api_key: api_key.into(), access_token: access_token.into(), config: KiteManagerConfig::default(), raw_only: false }
+  }
+
+  pub fn max_connections(mut self, n: usize) -> Self { self.config.max_connections = n; self }
+  pub fn max_symbols_per_connection(mut self, n: usize) -> Self { self.config.max_symbols_per_connection = n; self }
+  pub fn connection_timeout(mut self, d: std::time::Duration) -> Self { self.config.connection_timeout = d; self }
+  pub fn health_check_interval(mut self, d: std::time::Duration) -> Self { self.config.health_check_interval = d; self }
+  pub fn reconnect_attempts(mut self, attempts: usize) -> Self { self.config.max_reconnect_attempts = attempts; self }
+  pub fn reconnect_delay(mut self, d: std::time::Duration) -> Self { self.config.reconnect_delay = d; self }
+  pub fn enable_dedicated_parsers(mut self, enable: bool) -> Self { self.config.enable_dedicated_parsers = enable; self }
+  pub fn default_mode(mut self, mode: Mode) -> Self { self.config.default_mode = mode; self }
+  pub fn connection_buffer_size(mut self, sz: usize) -> Self { self.config.connection_buffer_size = sz; self }
+  pub fn parser_buffer_size(mut self, sz: usize) -> Self { self.config.parser_buffer_size = sz; self }
+  pub fn raw_only(mut self, raw: bool) -> Self { self.raw_only = raw; self }
+
+  /// Override entire config (advanced)
+  pub fn config(mut self, config: KiteManagerConfig) -> Self { self.config = config; self }
+
+  /// Build the manager (not started yet)
+  pub fn build(self) -> KiteTickerManager { KiteTickerManager::new(self.api_key, self.access_token, self.config).with_raw_only(self.raw_only) }
 }
 
 impl KiteTickerManager {
@@ -106,8 +142,12 @@ impl KiteTickerManager {
       health_monitor: None,
       next_connection_index: 0,
       start_time: Instant::now(),
+    raw_only: false,
     }
   }
+
+  /// Set raw-only mode (builder uses this)
+  pub fn with_raw_only(mut self, raw: bool) -> Self { self.raw_only = raw; self }
 
   /// Initialize all connections and start the manager
   pub async fn start(&mut self) -> Result<(), String> {
@@ -129,10 +169,17 @@ impl KiteTickerManager {
         ManagedConnection::new(channel_id, connection_sender);
 
       // Connect to WebSocket
-      connection
-        .connect(&self.api_key, &self.access_token, &self.config)
-        .await
-        .map_err(|e| format!("Failed to connect WebSocket {}: {}", i, e))?;
+      if self.raw_only {
+        connection
+          .connect_with_raw(&self.api_key, &self.access_token, &self.config, true)
+          .await
+          .map_err(|e| format!("Failed to connect WebSocket {}: {}", i, e))?;
+      } else {
+        connection
+          .connect(&self.api_key, &self.access_token, &self.config)
+          .await
+          .map_err(|e| format!("Failed to connect WebSocket {}: {}", i, e))?;
+      }
 
       // Create message processor
       let (mut processor, output_receiver) = MessageProcessor::new(
@@ -423,27 +470,17 @@ impl KiteTickerManager {
     // Change mode on each connection
     for (channel_id, symbols) in connection_symbols {
       let connection = &mut self.connections[channel_id.to_index()];
-
-      if !symbols.is_empty() {
-        if let Some(subscriber) = &mut connection.subscriber {
-          subscriber.set_mode(&symbols, mode).await.map_err(|e| {
-            format!(
-              "Failed to change mode on connection {:?}: {}",
-              channel_id, e
-            )
-          })?;
-
-          // Update our tracking
-          for &symbol in &symbols {
-            connection.subscribed_symbols.insert(symbol, mode);
-          }
-
-          log::info!(
-            "Changed mode for {} symbols on connection {:?}",
-            symbols.len(),
-            channel_id
-          );
-        }
+      if symbols.is_empty() { continue; }
+      // Send mode request directly via command sender if available
+      if let Some(ref cmd) = connection.cmd_tx {
+        let mode_req = crate::models::Request::mode(mode, &symbols).to_string();
+        let _ = cmd.send(tokio_tungstenite::tungstenite::Message::Text(mode_req));
+        for &s in &symbols { connection.subscribed_symbols.insert(s, mode); }
+        log::info!("Changed mode for {} symbols on connection {:?}", symbols.len(), channel_id);
+      } else if let Some(subscriber) = &mut connection.subscriber {
+        // fallback (should normally have command sender)
+        subscriber.set_mode(&symbols, mode).await.map_err(|e| format!("Failed to change mode on connection {:?}: {}", channel_id, e))?;
+        for &s in &symbols { connection.subscribed_symbols.insert(s, mode); }
       }
     }
 

@@ -24,6 +24,7 @@ pub struct ManagedConnection {
   // Store credentials for dynamic operations
   api_key: String,
   access_token: String,
+  pub(crate) cmd_tx: Option<mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>>,
 }
 
 impl ManagedConnection {
@@ -48,6 +49,7 @@ impl ManagedConnection {
       message_sender,
       api_key: String::new(),
       access_token: String::new(),
+  cmd_tx: None,
     }
   }
 
@@ -71,7 +73,8 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-    self.ticker = Some(ticker);
+  self.cmd_tx = ticker.command_sender();
+  self.ticker = Some(ticker);
     self.is_healthy.store(true, Ordering::Relaxed);
 
     // Update stats
@@ -84,30 +87,46 @@ impl ManagedConnection {
     Ok(())
   }
 
+  /// Connect with explicit raw_only flag
+  pub async fn connect_with_raw(
+    &mut self,
+    api_key: &str,
+    access_token: &str,
+    config: &KiteManagerConfig,
+    raw_only: bool,
+  ) -> Result<(), String> {
+    self.api_key = api_key.to_string();
+    self.access_token = access_token.to_string();
+    let ticker = tokio::time::timeout(
+      config.connection_timeout,
+      crate::ticker::KiteTickerAsync::connect_with_options(api_key, access_token, raw_only),
+    )
+    .await
+    .map_err(|_| "Connection timeout".to_string())?
+    .map_err(|e| format!("Connection failed: {}", e))?;
+
+    self.cmd_tx = ticker.command_sender();
+    self.ticker = Some(ticker);
+    self.is_healthy.store(true, std::sync::atomic::Ordering::Relaxed);
+    {
+      let mut stats = self.stats.write().await;
+      stats.is_connected = true;
+      stats.connection_uptime = Duration::ZERO;
+    }
+    Ok(())
+  }
+
   /// Subscribe to symbols on this connection
   pub async fn subscribe_symbols(
     &mut self,
     symbols: &[u32],
     mode: Mode,
   ) -> Result<(), String> {
-    if self.ticker.is_some() && !self.api_key.is_empty() {
-      // Create a new ticker connection for the subscriber
-      // This avoids consuming the main ticker
-      let subscriber_ticker = crate::ticker::KiteTickerAsync::connect(
-        &self.api_key,
-        &self.access_token,
-      )
-      .await?;
-
-      // Use the new ticker to create a subscriber
-      let subscriber = subscriber_ticker.subscribe(symbols, Some(mode)).await?;
-
-      // Update our symbol tracking
-      for &symbol in symbols {
-        self.subscribed_symbols.insert(symbol, mode);
-      }
-
-      // Store subscriber for message processing
+    if let Some(ticker) = self.ticker.as_mut() {
+      // Use the existing ticker directly
+      let subscriber = ticker.subscribe(symbols, Some(mode)).await?;
+      // Track symbols
+      for &symbol in symbols { self.subscribed_symbols.insert(symbol, mode); }
       self.subscriber = Some(subscriber);
 
       // Update stats
@@ -129,31 +148,21 @@ impl ManagedConnection {
     mode: Mode,
   ) -> Result<(), String> {
     if self.subscriber.is_some() {
-      // Add to existing subscription
-      let subscriber = self.subscriber.as_mut().unwrap();
-      subscriber.subscribe(symbols, Some(mode)).await?;
-
-      // Update our symbol tracking
-      for &symbol in symbols {
-        self.subscribed_symbols.insert(symbol, mode);
+      // Filter to truly new symbols
+      let new: Vec<u32> = symbols.iter().copied().filter(|s| !self.subscribed_symbols.contains_key(s)).collect();
+      if new.is_empty() { return Ok(()); }
+      if let Some(tx) = &self.cmd_tx {
+        // send subscribe + mode
+        let sub = crate::models::Request::subscribe(&new).to_string();
+        let mode_msg = crate::models::Request::mode(mode, &new).to_string();
+        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(sub));
+        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(mode_msg));
       }
-
-      // Update stats
-      {
-        let mut stats = self.stats.write().await;
-        stats.symbol_count = self.subscribed_symbols.len();
-      }
-
-      log::info!(
-        "Added {} symbols to connection {}",
-        symbols.len(),
-        self.id.to_index()
-      );
+      for &s in &new { self.subscribed_symbols.insert(s, mode); }
+      let mut stats = self.stats.write().await; stats.symbol_count = self.subscribed_symbols.len();
+      log::info!("Incrementally subscribed {} symbols on connection {}", new.len(), self.id.to_index());
       Ok(())
-    } else {
-      // First subscription - use the original method
-      self.subscribe_symbols(symbols, mode).await
-    }
+    } else { self.subscribe_symbols(symbols, mode).await }
   }
 
   /// Dynamically remove symbols from existing subscription
@@ -161,30 +170,19 @@ impl ManagedConnection {
     &mut self,
     symbols: &[u32],
   ) -> Result<(), String> {
-    if let Some(subscriber) = &mut self.subscriber {
-      // Remove from existing subscription
-      subscriber.unsubscribe(symbols).await?;
-
-      // Update our symbol tracking
-      for &symbol in symbols {
-        self.subscribed_symbols.remove(&symbol);
+    if self.subscriber.is_some() {
+      // Only symbols currently subscribed
+      let existing: Vec<u32> = symbols.iter().copied().filter(|s| self.subscribed_symbols.contains_key(s)).collect();
+      if existing.is_empty() { return Ok(()); }
+      if let Some(tx) = &self.cmd_tx {
+        let unsub = crate::models::Request::unsubscribe(&existing).to_string();
+        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(unsub));
       }
-
-      // Update stats
-      {
-        let mut stats = self.stats.write().await;
-        stats.symbol_count = self.subscribed_symbols.len();
-      }
-
-      log::info!(
-        "Removed {} symbols from connection {}",
-        symbols.len(),
-        self.id.to_index()
-      );
+      for s in &existing { self.subscribed_symbols.remove(s); }
+      let mut stats = self.stats.write().await; stats.symbol_count = self.subscribed_symbols.len();
+      log::info!("Incrementally unsubscribed {} symbols on connection {}", existing.len(), self.id.to_index());
       Ok(())
-    } else {
-      Err("No active subscription to remove symbols from".to_string())
-    }
+    } else { Err("No active subscription to remove symbols from".to_string()) }
   }
 
   /// Start message processing for the subscriber
@@ -221,7 +219,9 @@ impl ManagedConnection {
     is_healthy: Arc<AtomicBool>,
     connection_id: ChannelId,
   ) {
-    let mut last_message_time = Instant::now();
+  let mut last_message_time = Instant::now();
+  let mut last_stats_flush = Instant::now();
+  let mut pending_messages: u64 = 0;
 
     log::info!(
       "Starting message processing loop for connection {}",
@@ -234,16 +234,15 @@ impl ManagedConnection {
           last_message_time = Instant::now();
 
           // Debug: Print incoming message
-          match &message {
-            TickerMessage::Ticks(ticks) => {
-              log::debug!(
-                "Connection {}: Received {} ticks",
-                connection_id.to_index(),
-                ticks.len()
-              );
-              for (i, tick) in ticks.iter().enumerate() {
-                if i < 3 {
-                  // Only log first 3 ticks to avoid spam
+          if log::log_enabled!(log::Level::Debug) {
+            match &message {
+              TickerMessage::Ticks(ticks) => {
+                log::debug!(
+                  "Connection {}: Received {} ticks",
+                  connection_id.to_index(),
+                  ticks.len()
+                );
+                for (i, tick) in ticks.iter().take(3).enumerate() {
                   log::debug!(
                     "  Tick {}: Symbol {}, Mode {:?}, LTP {:?}",
                     i + 1,
@@ -253,28 +252,31 @@ impl ManagedConnection {
                   );
                 }
               }
-            }
-            TickerMessage::Error(err) => {
-              log::debug!(
-                "Connection {}: Received error message: {}",
-                connection_id.to_index(),
-                err
-              );
-            }
-            _ => {
-              log::debug!(
-                "Connection {}: Received other message: {:?}",
-                connection_id.to_index(),
-                message
-              );
+              TickerMessage::Error(err) => {
+                log::debug!(
+                  "Connection {}: Received error message: {}",
+                  connection_id.to_index(),
+                  err
+                );
+              }
+              _ => {
+                log::debug!(
+                  "Connection {}: Received other message: {:?}",
+                  connection_id.to_index(),
+                  message
+                );
+              }
             }
           }
 
           // Update stats
-          {
+          pending_messages += 1;
+          if last_stats_flush.elapsed() >= Duration::from_millis(1000) {
             let mut stats = stats.write().await;
-            stats.messages_received += 1;
+            stats.messages_received += pending_messages;
             stats.last_message_time = Some(last_message_time);
+            pending_messages = 0;
+            last_stats_flush = Instant::now();
           }
 
           // Forward message to parser (non-blocking)
@@ -298,8 +300,11 @@ impl ManagedConnection {
           log::error!("Connection {} error: {}", connection_id.to_index(), e);
 
           // Update error stats
-          let mut stats = stats.write().await;
-          stats.errors_count += 1;
+          if last_stats_flush.elapsed() >= Duration::from_millis(250) {
+            let mut stats = stats.write().await;
+            stats.errors_count += 1;
+            last_stats_flush = Instant::now();
+          }
 
           // Continue trying to receive messages
         }

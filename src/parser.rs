@@ -1,47 +1,43 @@
-use byteorder::{BigEndian, ByteOrder};
 use std::ops::Div;
 
-use crate::{
-  errors::ParseTickError,
-  models::{Exchange, Tick},
-};
+use crate::models::Exchange;
 
+#[inline(always)]
 pub(crate) fn value(input: &[u8]) -> Option<u32> {
   if input.len() >= 4 {
-    Some(BigEndian::read_u32(input))
+    // Safety: we guarded length; copy into array then convert
+    Some(u32::from_be_bytes([input[0], input[1], input[2], input[3]]))
   } else {
     None
   }
 }
 
+#[inline(always)]
 pub(crate) fn value_short(input: &[u8]) -> Option<u16> {
   if input.len() >= 2 {
-    Some(BigEndian::read_u16(input))
+    Some(u16::from_be_bytes([input[0], input[1]]))
   } else {
     None
   }
 }
 
+#[inline(always)]
 pub(crate) fn price(input: &[u8], exchange: &Exchange) -> Option<f64> {
   if input.len() >= 4 && exchange.divisor() > 0_f64 {
-    let value = BigEndian::read_i32(input) as f64;
+    let value = i32::from_be_bytes([input[0], input[1], input[2], input[3]]) as f64;
     Some(value.div(exchange.divisor()))
   } else {
     None
   }
 }
 
+#[inline(always)]
 pub(crate) fn packet_length(bs: &[u8]) -> usize {
   if bs.len() >= 2 {
-    BigEndian::read_u16(bs) as usize
+    u16::from_be_bytes([bs[0], bs[1]]) as usize
   } else {
     0
   }
 }
 
-pub(crate) fn parse_tick(value: &[u8]) -> Result<Tick, ParseTickError> {
-  match value.len() {
-    8 | 28 | 32 | 44 | 184 => Ok(Tick::from_bytes(value)),
-    len => Err(ParseTickError(format!("invalid tick size: {}", len))),
-  }
-}
+// parse_tick inlined into Tick::try_from to remove an extra function call per packet

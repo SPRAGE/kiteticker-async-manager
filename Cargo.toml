@@ -68,8 +68,10 @@ chrono = { version = "0.4.31", features = ["serde"] }
 byteorder = "1.5"
 log = "0.4"
 env_logger = "0.11"
+smallvec = "1.13"
 
 [dev-dependencies]
+base64 = "0.22"
 
 # Additional Performance Examples
 [[example]]
@@ -83,3 +85,8 @@ doc = true
 name = "high_frequency"
 path = "examples/performance/high_frequency.rs"
 doc = true
+
+[[example]]
+name = "parse_full_quote_bench"
+path = "examples/performance/parse_full_quote_bench.rs"
+doc = false

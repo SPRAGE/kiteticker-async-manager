@@ -68,86 +68,69 @@ impl Tick {
 impl Tick {
   pub(crate) fn from_bytes(input: &[u8]) -> Self {
     let mut tick = Tick::default();
+    // Parse LTP fields (first 8 bytes)
+    tick.set_instrument_token(input);
+    if let Some(bs) = input.get(4..8) {
+      tick.mode = Mode::LTP;
+      tick.last_price = price(bs, &tick.exchange);
+    }
 
-    let parse_ltp = |t: &mut Tick, i: &[u8]| {
-      // 0 - 4 bytes : instrument token
-      t.set_instrument_token(i);
-      // 4 - 8 bytes : ltp
-      if let Some(bs) = i.get(4..8) {
-        t.mode = Mode::LTP;
-        t.last_price = price(bs, &t.exchange);
+    let is_index = !tick.exchange.is_tradable();
+    tick.is_index = is_index;
+    tick.is_tradable = !is_index;
+
+    // Parse Quote section
+    if is_index {
+      if let Some(bs) = input.get(8..28) {
+        tick.mode = Mode::Quote;
+        // 8 - 24 bytes : ohlc (indices use HLOC order)
+        tick.ohlc = OHLC::from_index(&bs[0..16], &tick.exchange);
+        // 24 - 28 bytes : price change (provided only for indices)
+        tick.net_change = price(&bs[16..20], &tick.exchange);
       }
-    };
+    } else if let Some(bs) = input.get(8..44) {
+      tick.mode = Mode::Quote;
+      // 8 - 12 bytes : last traded quantity
+      tick.last_traded_qty = value(&bs[0..4]);
+      // 12 - 16 bytes : avg traded price
+      tick.avg_traded_price = price(&bs[4..8], &tick.exchange);
+      // 16 - 20 bytes : volume traded today
+      tick.volume_traded = value(&bs[8..12]);
+      // 20 - 24 bytes : total buy quantity
+      tick.total_buy_qty = value(&bs[12..16]);
+      // 24 - 28 bytes : total sell quantity
+      tick.total_sell_qty = value(&bs[16..20]);
+      // 28 - 44 bytes : ohlc
+      tick.ohlc = OHLC::from(&bs[20..36], &tick.exchange);
+    }
 
-    let parse_quote = |t: &mut Tick, i: &[u8], is_index: bool| {
-      if is_index {
-        if let Some(bs) = i.get(8..28) {
-          t.mode = Mode::Quote;
-          // 8 - 24 bytes : ohlc (indices use HLOC order)
-          t.ohlc = OHLC::from_index(&bs[0..16], &t.exchange);
-          // 24 - 28 bytes : price change (provided only for indices)
-          t.net_change = price(&bs[16..20], &t.exchange);
-        }
-      } else if let Some(bs) = i.get(8..44) {
-        t.mode = Mode::Quote;
-        // 8 - 12 bytes : last traded quantity
-        t.last_traded_qty = value(&bs[0..4]);
-        // 12 - 16 bytes : avg traded price
-        t.avg_traded_price = price(&bs[4..8], &t.exchange);
-        // 16 - 20 bytes : volume traded today
-        t.volume_traded = value(&bs[8..12]);
-        // 20 - 24 bytes : total buy quantity
-        t.total_buy_qty = value(&bs[12..16]);
-        // 24 - 28 bytes : total sell quantity
-        t.total_sell_qty = value(&bs[16..20]);
-        // 28 - 44 bytes : ohlc
-        t.ohlc = OHLC::from(&bs[20..36], &t.exchange);
+    // Parse Full section
+    if is_index {
+      if let Some(bs) = input.get(28..32) {
+        tick.mode = Mode::Full;
+        // 28 - 32 bytes : exchange time
+        tick.exchange_timestamp =
+          value(bs).map(|x| Duration::from_secs(x.into()));
       }
-    };
+    } else if let Some(bs) = input.get(44..184) {
+      tick.mode = Mode::Full;
+      tick.set_change();
 
-    let parse_full = |t: &mut Tick, i: &[u8], is_index: bool| {
-      if is_index {
-        if let Some(bs) = i.get(28..32) {
-          t.mode = Mode::Full;
-          // 28 - 32 bytes : exchange time
-          t.exchange_timestamp =
-            value(bs).map(|x| Duration::from_secs(x.into()));
-        }
-      } else if let Some(bs) = i.get(44..184) {
-        t.mode = Mode::Full;
-        t.set_change();
+      // 44 - 48 bytes : last traded timestamp
+      tick.last_traded_timestamp =
+        value(&bs[0..4]).map(|x| Duration::from_secs(x.into()));
 
-        // 44 - 48 bytes : last traded timestamp
-        t.last_traded_timestamp =
-          value(&bs[0..4]).map(|x| Duration::from_secs(x.into()));
-
-        // 48 - 52 bytes : oi
-        t.oi = value(&bs[4..8]);
-        // 52 - 56 bytes : oi day high
-        t.oi_day_high = value(&bs[8..12]);
-        // 56 - 60 bytes : oi day low
-        t.oi_day_low = value(&bs[12..16]);
-        // 60 - 64 bytes : exchange time
-        t.exchange_timestamp =
-          value(&bs[16..20]).map(|x| Duration::from_secs(x.into()));
-        // 64 - 184 bytes : market depth
-        t.depth = Depth::from(&bs[20..140], &t.exchange);
-      }
-    };
-
-    parse_ltp(&mut tick, input);
-    if !tick.exchange.is_tradable() {
-      tick.is_index = true;
-      tick.is_tradable = false;
-
-      parse_quote(&mut tick, input, true);
-      parse_full(&mut tick, input, true);
-    } else {
-      tick.is_index = false;
-      tick.is_tradable = true;
-
-      parse_quote(&mut tick, input, false);
-      parse_full(&mut tick, input, false);
+      // 48 - 52 bytes : oi
+      tick.oi = value(&bs[4..8]);
+      // 52 - 56 bytes : oi day high
+      tick.oi_day_high = value(&bs[8..12]);
+      // 56 - 60 bytes : oi day low
+      tick.oi_day_low = value(&bs[12..16]);
+      // 60 - 64 bytes : exchange time
+      tick.exchange_timestamp =
+        value(&bs[16..20]).map(|x| Duration::from_secs(x.into()));
+      // 64 - 184 bytes : market depth
+      tick.depth = Depth::from(&bs[20..140], &tick.exchange);
     }
 
     tick
@@ -157,6 +140,9 @@ impl Tick {
 impl TryFrom<&[u8]> for Tick {
   type Error = ParseTickError;
   fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-    crate::parser::parse_tick(value)
+    match value.len() {
+      8 | 28 | 32 | 44 | 184 => Ok(Tick::from_bytes(value)),
+      len => Err(ParseTickError(format!("invalid tick size: {}", len))),
+    }
   }
 }

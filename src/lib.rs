@@ -27,6 +27,26 @@
 //!
 //! ### Multi-Connection Manager (Recommended)
 //!
+//! Using the builder:
+//!
+//! ```rust,no_run
+//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, TickerMessage};
+//! #[tokio::main]
+//! async fn main() -> Result<(), String> {
+//!   let api_key = std::env::var("KITE_API_KEY").unwrap();
+//!   let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
+//!   let mut manager = KiteTickerManagerBuilder::new(api_key, access_token)
+//!       .max_connections(3)
+//!       .max_symbols_per_connection(3000)
+//!       .raw_only(true) // receive only raw frames if desired
+//!       .default_mode(Mode::Quote)
+//!       .enable_dedicated_parsers(true)
+//!       .build();
+//!   manager.start().await?;
+//!   Ok(())
+//! }
+//! ```
+//!
 //! ```rust,no_run
 //! use kiteticker_async_manager::{KiteTickerManager, KiteManagerConfig, Mode, TickerMessage};
 //!
@@ -171,6 +191,6 @@ pub use models::{
 
 pub mod ticker;
 pub use manager::{
-  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager, ManagerStats,
+  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager, KiteTickerManagerBuilder, ManagerStats,
 };
 pub use ticker::{KiteTickerAsync, KiteTickerSubscriber};
