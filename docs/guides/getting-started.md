@@ -18,7 +18,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kiteticker-async-manager = "0.1.0"
+kiteticker-async-manager = "0.1.10"
 tokio = { version = "1.0", features = ["full"] }
 ```
 

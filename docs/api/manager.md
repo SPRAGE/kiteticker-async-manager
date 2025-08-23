@@ -1,6 +1,6 @@
 # KiteTickerManager API Reference
 
-The `KiteTickerManager` provides a high-level interface for managing multiple WebSocket connections to the Kite Connect ticker API.
+The `KiteTickerManager` provides a high-level interface for managing multiple WebSocket connections to the Kite Connect ticker API. For fluent setup, see `KiteTickerManagerBuilder` (supports `raw_only(true)` to emit raw frames instead of parsed ticks).
 
 ## 📋 Table of Contents
 

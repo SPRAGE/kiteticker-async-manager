@@ -5,10 +5,12 @@ This directory contains comprehensive API documentation for the KiteTicker Async
 ## 📚 Documentation Structure
 
 - **[Manager API](manager.md)** - Multi-connection manager API reference
-- **[Ticker API](ticker.md)** - Core ticker WebSocket client API
+- **[Ticker API](ticker.md)** - Core ticker WebSocket client API (raw-only mode, raw subscription)
 - **[Configuration](config.md)** - Configuration options and examples
 - **[Models](models.md)** - Data structures and message types
 - **[Error Handling](errors.md)** - Error types and handling strategies
+
+Tip: Prefer `KiteTickerManagerBuilder` for fluent setup, including `raw_only(true)` to bypass parsing when needed.
 
 ## 🚀 Quick Start
 

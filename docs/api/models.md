@@ -17,11 +17,12 @@ Data structures and message types used in the KiteTicker Async library.
 Defines the type of market data subscription.
 
 ```rust
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[repr(u8)]
 pub enum Mode {
-    LTP,    // Last Traded Price
-    Quote,  // Quote (LTP + Volume + OHLC)
-    Full,   // Full market depth
+    LTP = 1,
+    Quote = 2,
+    Full = 3,
 }
 ```
 
@@ -53,8 +54,11 @@ Main message type received from WebSocket connections.
 #[derive(Debug, Clone)]
 pub enum TickerMessage {
     Ticks(Vec<TickMessage>),
-    Text(TextMessage),
+    Raw(Vec<u8>),
     Error(String),
+    OrderPostback(Result<Order, String>),
+    Message(serde_json::Value),
+    ClosingMessage(serde_json::Value),
 }
 ```
 
@@ -84,8 +88,8 @@ while let Ok(message) = receiver.recv().await {
                     tick.content.last_price.unwrap_or(0.0));
             }
         }
-        TickerMessage::Text(text) => {
-            println!("Server message: {}", text.message);
+        TickerMessage::Message(v) => {
+            println!("Server message: {}", v);
         }
         TickerMessage::Error(error) => {
             eprintln!("Error: {}", error);
@@ -169,22 +173,22 @@ Other quotes:  Open, High, Low, Close
 This library parses the `net_change` field directly and accounts for the
 different field order when constructing the [`OHLC`] struct.
 
-### `MarketDepth`
+### `MarketDepth` / `Depth`
 
 Order book depth data (Full mode only).
 
 ```rust
 #[derive(Debug, Clone)]
-pub struct MarketDepth {
-    pub buy: Vec<DepthItem>,
-    pub sell: Vec<DepthItem>,
+pub struct Depth {
+    pub buy: [DepthItem; 5],
+    pub sell: [DepthItem; 5],
 }
 
 #[derive(Debug, Clone)]
 pub struct DepthItem {
-    pub quantity: u32,
+    pub qty: u32,
     pub price: f64,
-    pub orders: u32,
+    pub orders: u16,
 }
 ```
 
@@ -192,12 +196,10 @@ pub struct DepthItem {
 ```rust
 if let Some(depth) = &tick.content.depth {
     // Best bid/ask
-    if let Some(best_bid) = depth.buy.first() {
-        println!("Best bid: {} @ {}", best_bid.quantity, best_bid.price);
-    }
-    if let Some(best_ask) = depth.sell.first() {
-        println!("Best ask: {} @ {}", best_ask.quantity, best_ask.price);
-    }
+    let best_bid = &depth.buy[0];
+    let best_ask = &depth.sell[0];
+    println!("Best bid: {} @ {}", best_bid.qty, best_bid.price);
+    println!("Best ask: {} @ {}", best_ask.qty, best_ask.price);
 }
 ```
 

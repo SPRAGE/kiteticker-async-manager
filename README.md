@@ -35,7 +35,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-kiteticker-async-manager = "0.1.0"
+kiteticker-async-manager = "0.1.10"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -227,8 +227,8 @@ export KITE_API_KEY=your_api_key
 export KITE_ACCESS_TOKEN=your_access_token
 
 # Run examples
-cargo run --example basic/single_connection
-cargo run --example advanced/dynamic_subscription_demo
+cargo run --example single_connection
+cargo run --example dynamic_subscription_demo
 ```
 
 ### Available Tasks
