@@ -300,7 +300,7 @@ jobs:
           
           **Version:** ${{ needs.check-tag.outputs.version }}
           **Branch:** ${{ github.ref_name }}
-    **Published to:** [crates.io](https://crates.io/crates/${{ github.event.repository.name }}) (if not already existing)
+          **Published to:** [crates.io](https://crates.io/crates/${{ github.event.repository.name }}) (if not already existing)
           
           ## What's Changed
           ${{ needs.create-tag.outputs.changelog }}
