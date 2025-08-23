@@ -11,6 +11,9 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
+// Bounded capacity for reader -> parser channel to avoid unbounded memory growth
+const PARSE_CHANNEL_CAP: usize = 4096;
+
 #[derive(Debug)]
 ///
 /// The WebSocket client for connecting to Kite Connect's streaming quotes service.
@@ -68,8 +71,9 @@ impl KiteTickerAsync {
       }
     });
 
-    // Channel to decouple read and parse so the websocket stream isn't blocked by parsing
-    let (parse_tx, mut parse_rx) = mpsc::unbounded_channel::<Message>();
+    // Channel to decouple read and parse so the websocket stream isn't blocked by parsing.
+    // Use a bounded channel with try_send to provide lightweight backpressure under bursts.
+    let (parse_tx, mut parse_rx) = mpsc::channel::<Message>(PARSE_CHANNEL_CAP);
 
     // Reader: only forward messages into parse channel, avoid heavy work here
     let msg_sender_for_reader = msg_tx.clone();
@@ -77,9 +81,19 @@ impl KiteTickerAsync {
       while let Some(message) = read_half.next().await {
         match message {
           Ok(msg) => {
-            // Forward to parser; if parser is gone, exit
-            if parse_tx.send(msg).is_err() {
-              break;
+            // Forward to parser using non-blocking try_send; if channel is full, drop frame
+            match parse_tx.try_send(msg) {
+              Ok(_) => {}
+              Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                log::warn!(
+                  "Reader: parse channel full, dropping incoming frame"
+                );
+                // Drop and continue to keep read loop unblocked
+              }
+              Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                // Parser task gone; exit reader
+                break;
+              }
             }
           }
           Err(e) => {
@@ -365,10 +379,13 @@ fn process_message(
       // publish raw first (cheap arc clone)
       let _ = raw_sender.send(arc.clone());
       if raw_only {
-        return Some(TickerMessage::Raw(arc.to_vec()));
+        // In raw-only mode, rely solely on raw_tx broadcast to deliver zero-copy frames.
+        // Do not emit a TickerMessage to avoid extra allocations or duplicates.
+        return None;
       }
+      // Drop 1-byte heartbeat frames per protocol (no downstream churn)
       if slice.len() < 2 {
-        Some(TickerMessage::Ticks(vec![]))
+        None
       } else {
         process_binary(slice)
       }
