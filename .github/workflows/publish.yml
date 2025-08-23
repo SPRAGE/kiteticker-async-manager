@@ -68,7 +68,8 @@ jobs:
 
     - name: Skip publish (version exists)
       if: steps.version-check.outputs.exists == 'true'
-      run: echo "Skipping publish: version ${{ steps.version-check.outputs.version }} already exists on crates.io"
+      run: |
+        echo "Skipping publish: version ${{ steps['version-check'].outputs.version }} already exists on crates.io"
     
     # Create GitHub release only when we actually published a new version
     - name: Create GitHub Release
