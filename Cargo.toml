@@ -86,6 +86,12 @@ name = "high_frequency"
 path = "examples/performance/high_frequency.rs"
 doc = true
 
+
+# Docs.rs configuration to generate comprehensive docs
+[package.metadata.docs.rs]
+all-features = true
+# Build for the primary target; docs.rs will build for its default as well
+targets = ["x86_64-unknown-linux-gnu"]
 [[example]]
 name = "parse_full_quote_bench"
 path = "examples/performance/parse_full_quote_bench.rs"
