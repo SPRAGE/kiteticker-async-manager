@@ -38,15 +38,38 @@ jobs:
     # Verify the package can be built for publishing
     - name: Verify publish readiness
       run: cargo publish --dry-run --all-features
+
+    - name: Check if version already exists on crates.io
+      id: version-check
+      run: |
+        set -euo pipefail
+        VERSION=$(grep -E '^version *= *"' Cargo.toml | head -n1 | sed -E 's/^version *= *"([^"]+)".*/\1/')
+        NAME=$(grep -E '^name *= *"' Cargo.toml | head -n1 | sed -E 's/^name *= *"([^"]+)".*/\1/')
+        echo "crate=$NAME" >> "$GITHUB_OUTPUT"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        # Use crates.io index via cargo search; falls back gracefully
+        if cargo search "^${NAME}$" --limit 1 | grep -q "${NAME} = \"${VERSION}\""; then
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION already exists on crates.io"
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION not found on crates.io"
+        fi
     
     # Publish to crates.io
     - name: Publish to crates.io
+      if: steps.version-check.outputs.exists == 'false'
       run: cargo publish
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+    - name: Skip publish (version exists)
+      if: steps.version-check.outputs.exists == 'true'
+      run: echo "Skipping publish: version ${{ steps.version-check.outputs.version }} already exists on crates.io"
     
-    # Create GitHub release
+    # Create GitHub release only when we actually published a new version
     - name: Create GitHub Release
+      if: steps.version-check.outputs.exists == 'false'
       uses: softprops/action-gh-release@v1
       with:
         generate_release_notes: true

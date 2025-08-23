@@ -40,6 +40,71 @@ print_release() {
     echo -e "${PURPLE}[RELEASE]${NC} $1"
 }
 
+# Defaults and CLI flags
+do_dry_publish=true
+do_push=false
+no_verify=false
+remote="origin"
+
+print_usage() {
+    cat <<USAGE
+Usage: $(basename "$0") [options]
+
+Options:
+  --dry-publish            Run cargo publish --dry-run validation (default)
+  --skip-dry-publish       Skip cargo publish --dry-run validation
+  -p, --push               After creating the tag locally, push it to the remote
+  --no-verify              Use --no-verify when pushing (skips client-side hooks)
+  --remote <name>          Remote name to push to (default: origin)
+  -h, --help               Show this help and exit
+
+Examples:
+  $(basename "$0") --skip-dry-publish           # Local tag only, no dry-run publish
+  $(basename "$0") --push --no-verify           # Local tag + push tag to origin
+  $(basename "$0") --remote upstream --push     # Push to a different remote
+USAGE
+}
+
+# Parse CLI args
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-publish)
+            do_dry_publish=true
+            shift
+            ;;
+        --skip-dry-publish|--no-dry-publish)
+            do_dry_publish=false
+            shift
+            ;;
+        -p|--push)
+            do_push=true
+            shift
+            ;;
+        --no-verify)
+            no_verify=true
+            shift
+            ;;
+        --remote)
+            if [[ -n "${2:-}" ]]; then
+                remote="$2"
+                shift 2
+            else
+                print_error "--remote requires a value"
+                exit 1
+            fi
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            print_usage
+            exit 1
+            ;;
+    esac
+done
+
 # Check if we're in a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
     print_error "Not in a git repository"
@@ -66,9 +131,9 @@ fi
 
 print_info "Current branch: $current_branch ✓"
 
-# Pull latest changes
-print_info "Pulling latest changes from origin..."
-git pull origin $current_branch
+# Note: This script performs only local operations.
+# Ensure your local branch is up to date before running if needed:
+#   git fetch origin && git rebase origin/$current_branch
 
 # Get version from Cargo.toml
 version=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
@@ -127,14 +192,18 @@ else
     print_success "Documentation build successful ✓"
 fi
 
-# Publish dry run
-print_info "Testing package publishing (dry run)..."
-if ! cargo publish --dry-run --all-features --quiet; then
-    print_error "Publish dry-run failed! Cannot create release tag."
-    print_info "Please fix publishing issues before creating release tag."
-    exit 1
+if [[ "$do_dry_publish" == true ]]; then
+    # Publish dry run
+    print_info "Testing package publishing (dry run)..."
+    if ! cargo publish --dry-run --all-features --quiet; then
+        print_error "Publish dry-run failed! Cannot create release tag."
+        print_info "Please fix publishing issues before creating release tag."
+        exit 1
+    fi
+    print_success "Publish validation successful ✓"
+else
+    print_warning "Skipping cargo publish --dry-run validation as requested"
 fi
-print_success "Publish validation successful ✓"
 
 print_success "🎉 All validation checks passed!"
 
@@ -173,7 +242,7 @@ Part of $major_branch series.
 "
 fi
 
-tag_message="${tag_message}Automation: This tag triggers automated publishing to crates.io
+tag_message="${tag_message}Automation: This tag triggers CI and conditional publishing to crates.io (skips if version exists)
 Documentation: https://docs.rs/$(basename $(pwd))/$version
 Repository: $(git config --get remote.origin.url)
 
@@ -184,14 +253,23 @@ git tag -a "$tag" -m "$tag_message"
 
 print_success "✅ Created annotated tag: $tag"
 
-# Push tag to origin
-print_info "Pushing tag to origin..."
-# Bypass local pre-push hooks (which may run heavy checks) when pushing tags
-git push --no-verify origin "$tag"
+print_release "🎉 Release tag $tag created locally!"
 
-print_success "🚀 Tag pushed to origin successfully!"
-
-print_release "🎉 Release tag $tag created and pushed!"
+# Optional push
+if [[ "$do_push" == true ]]; then
+    print_info "Pushing tag to $remote..."
+    # Validate remote exists
+    if ! git remote get-url "$remote" >/dev/null 2>&1; then
+        print_error "Remote '$remote' does not exist"
+        exit 1
+    fi
+    if [[ "$no_verify" == true ]]; then
+        git push --no-verify "$remote" "$tag"
+    else
+        git push "$remote" "$tag"
+    fi
+    print_success "🚀 Tag pushed to $remote successfully!"
+fi
 echo ""
 print_info "📋 Release Summary:"
 echo "  Version: $version"
@@ -205,13 +283,19 @@ else
 fi
 echo ""
 
-print_info "🤖 Automated Actions Triggered:"
-echo "  ✅ GitHub Actions will now:"
-echo "     • Run comprehensive test suite"
-echo "     • Validate security and dependencies"
-echo "     • Publish package to crates.io"
-echo "     • Create GitHub release with notes"
-echo "     • Update documentation on docs.rs"
+if [[ "$do_push" != true ]]; then
+    print_info "🛠 Next steps (manual push):"
+    echo "  • Push the tag to GitHub to trigger CI and optional publish"
+    echo "    git push $remote $tag"
+    echo "  • Or push all tags at once"
+    echo "    git push --tags"
+    echo ""
+fi
+print_info "🤖 After pushing to GitHub, Actions will:"
+echo "  • Run tests and validation"
+echo "  • Publish to crates.io ONLY if version $version does not already exist"
+echo "  • Create a GitHub Release for $tag"
+echo "  • docs.rs will build documentation automatically"
 echo ""
 
 print_info "🔗 Monitor Progress:"
