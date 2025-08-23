@@ -1,5 +1,6 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use kiteticker_async_manager::Tick;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // Base64 encoded mock full-quote packet from kiteconnect-mocks/ticker_full.packet
 const FULL_QUOTE_B64: &str =
@@ -10,7 +11,7 @@ fn main() {
 
   // Clean and decode
   let b64 = FULL_QUOTE_B64.trim();
-  let bytes = base64::decode(b64).expect("decode mock packet");
+  let bytes = STANDARD.decode(b64).expect("decode mock packet");
 
   // Validate size matches one of supported tick sizes (184 for Full equity)
   assert!(
@@ -33,7 +34,7 @@ fn main() {
     // touch a couple fields to prevent over-optimization
     checksum = checksum.wrapping_add(t.instrument_token as u64);
     if let Some(lp) = t.last_price {
-      checksum = checksum.wrapping_add((lp.to_bits()) as u64);
+      checksum = checksum.wrapping_add(lp.to_bits());
     }
   }
   let elapsed = start.elapsed();

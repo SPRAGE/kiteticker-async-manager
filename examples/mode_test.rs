@@ -8,13 +8,13 @@ fn main() {
   let tokens = vec![256265, 265, 256777];
 
   // 1. Test subscribe request
-  let subscribe_req = Request::subscribe(tokens.clone());
+  let subscribe_req = Request::subscribe(&tokens);
   println!("📡 Subscribe request JSON:");
   println!("{}", subscribe_req);
   println!();
 
   // 2. Test unsubscribe request
-  let unsubscribe_req = Request::unsubscribe(tokens.clone());
+  let unsubscribe_req = Request::unsubscribe(&tokens);
   println!("📡 Unsubscribe request JSON:");
   println!("{}", unsubscribe_req);
   println!();
@@ -24,7 +24,7 @@ fn main() {
   let mode_names = ["LTP", "Quote", "Full"];
 
   for (mode, name) in modes.iter().zip(mode_names.iter()) {
-    let mode_req = Request::mode(*mode, tokens.clone());
+    let mode_req = Request::mode(*mode, &tokens);
     println!(
       "🎯 Mode request for {} ({}): JSON:",
       name,

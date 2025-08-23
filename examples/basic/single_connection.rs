@@ -20,7 +20,7 @@ async fn main() -> Result<(), String> {
   println!("📡 Connecting to Kite WebSocket...");
 
   // Establish WebSocket connection
-  let ticker = KiteTickerAsync::connect(&api_key, &access_token)
+  let mut ticker = KiteTickerAsync::connect(&api_key, &access_token)
     .await
     .map_err(|e| format!("Failed to connect: {}", e))?;
 
@@ -90,6 +90,9 @@ async fn main() -> Result<(), String> {
             Ok(order) => println!("📋 Order update: {:?}", order),
             Err(err) => println!("❌ Order error: {}", err),
           },
+          TickerMessage::Raw(_) => {
+            // Raw frames are not used in this example
+          }
           TickerMessage::ClosingMessage(close_msg) => {
             println!("🔌 Connection closing: {}", close_msg);
           }

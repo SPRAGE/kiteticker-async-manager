@@ -4,7 +4,7 @@ use kiteticker_async_manager::{KiteTickerAsync, Mode, TickerMessage};
 pub async fn main() -> Result<(), String> {
   let api_key = std::env::var("KITE_API_KEY").unwrap_or_default();
   let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap_or_default();
-  let ticker = KiteTickerAsync::connect(&api_key, &access_token).await?;
+  let mut ticker = KiteTickerAsync::connect(&api_key, &access_token).await?;
 
   let token = 408065;
   // subscribe to an instrument

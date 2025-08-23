@@ -23,7 +23,7 @@ pub async fn main() -> Result<(), String> {
   println!("📡 Connecting to Kite WebSocket...");
   let start_time = Instant::now();
 
-  let ticker = match timeout(
+  let mut ticker = match timeout(
     Duration::from_secs(10),
     KiteTickerAsync::connect(&api_key, &access_token),
   )

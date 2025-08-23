@@ -23,6 +23,7 @@ pub struct KiteTickerAsync {
   cmd_tx: Option<mpsc::UnboundedSender<Message>>,
   msg_tx: broadcast::Sender<TickerMessage>,
   raw_tx: broadcast::Sender<Arc<[u8]>>, // raw binary frames
+  #[allow(dead_code)]
   raw_only: bool, // if true, skip parsing and emit raw frames as TickerMessage::Raw
   writer_handle: Option<JoinHandle<()>>,
   reader_handle: Option<JoinHandle<()>>,
@@ -142,7 +143,7 @@ impl KiteTickerAsync {
     Ok(KiteTickerSubscriber {
       subscribed_tokens: st,
       rx,
-      cmd_tx: self.cmd_tx.as_ref().map(|s| Arc::new(s.clone())),
+      cmd_tx: self.cmd_tx.clone().map(Arc::new),
     })
   }
 
@@ -227,7 +228,7 @@ impl KiteTickerAsync {
 
   /// Get a clone of the internal command sender for incremental ops
   pub fn command_sender(&self) -> Option<mpsc::UnboundedSender<Message>> {
-    self.cmd_tx.as_ref().map(|s| s.clone())
+    self.cmd_tx.clone()
   }
 }
 
@@ -276,8 +277,10 @@ impl KiteTickerSubscriber {
     let default_mode = mode.unwrap_or_default();
     let mut new_tokens: Vec<u32> = Vec::new();
     for &t in tokens {
-      if !self.subscribed_tokens.contains_key(&t) {
-        self.subscribed_tokens.insert(t, default_mode);
+      if let std::collections::hash_map::Entry::Vacant(e) =
+        self.subscribed_tokens.entry(t)
+      {
+        e.insert(default_mode);
         new_tokens.push(t);
       }
     }
