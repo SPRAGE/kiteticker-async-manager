@@ -333,15 +333,12 @@ impl KiteTickerManager {
             })?;
 
           // IMPORTANT: Start forwarding messages from the subscriber to the processor
-          connection
-            .start_message_processing()
-            .await
-            .map_err(|e| {
-              format!(
-                "Failed to start message processing on connection {:?}: {}",
-                connection_id, e
-              )
-            })?;
+          connection.start_message_processing().await.map_err(|e| {
+            format!(
+              "Failed to start message processing on connection {:?}: {}",
+              connection_id, e
+            )
+          })?;
         } else {
           connection
             .add_symbols(&symbols, mode_clone)
