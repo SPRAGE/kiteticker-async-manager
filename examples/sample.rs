@@ -6,7 +6,7 @@ pub async fn main() -> Result<(), String> {
   let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap_or_default();
   let mut ticker = KiteTickerAsync::connect(&api_key, &access_token).await?;
 
-  let token = 408065;
+  let token = 256265;
   // subscribe to an instrument
   let mut subscriber = ticker.subscribe(&[token], Some(Mode::Full)).await?;
 

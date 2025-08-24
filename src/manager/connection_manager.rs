@@ -321,12 +321,24 @@ impl KiteTickerManager {
       if !symbols.is_empty() {
         // Use dynamic subscription if already has symbols, otherwise initial setup
         if connection.subscribed_symbols.is_empty() {
+          // First-time subscription on this connection: create subscriber
           connection
             .subscribe_symbols(&symbols, mode_clone)
             .await
             .map_err(|e| {
               format!(
                 "Failed to subscribe on connection {:?}: {}",
+                connection_id, e
+              )
+            })?;
+
+          // IMPORTANT: Start forwarding messages from the subscriber to the processor
+          connection
+            .start_message_processing()
+            .await
+            .map_err(|e| {
+              format!(
+                "Failed to start message processing on connection {:?}: {}",
                 connection_id, e
               )
             })?;
