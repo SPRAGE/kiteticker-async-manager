@@ -49,14 +49,29 @@ impl KiteTickerAsync {
     access_token: &str,
     raw_only: bool,
   ) -> Result<Self, String> {
-    let socket_url = format!(
-      "wss://{}?api_key={}&access_token={}",
-      "ws.kite.trade", api_key, access_token
-    );
-    // tokio-tungstenite >=0.27 expects IntoClientRequest; pass the URL as &str/String
-    let (ws_stream, _) = connect_async(socket_url.as_str())
+    // Build URL with proper percent-encoding of query params
+    let mut url = url::Url::parse("wss://ws.kite.trade")
+      .map_err(|e| format!("Invalid base URL: {}", e))?;
+    {
+      let mut qp = url.query_pairs_mut();
+      qp.append_pair("api_key", api_key);
+      qp.append_pair("access_token", access_token);
+    }
+    // tokio-tungstenite >=0.27 accepts types implementing IntoClientRequest (Url is fine)
+    let (ws_stream, _resp) = connect_async(url.as_str())
       .await
-      .map_err(|e| e.to_string())?;
+      .map_err(|e| match e {
+        tokio_tungstenite::tungstenite::Error::Http(response) => {
+          // Provide clearer context for HTTP handshake failures
+          let status = response.status();
+          let reason = status.canonical_reason().unwrap_or("");
+          format!(
+            "HTTP error during WebSocket handshake: {} {}",
+            status, reason
+          )
+        }
+        other => other.to_string(),
+      })?;
 
     let (write_half, mut read_half) = ws_stream.split();
 
