@@ -216,7 +216,7 @@
 //!
 //! Manager-level example (per-connection frames):
 //! ```rust,no_run
-//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, ChannelId, as_tick_raw};
+//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, as_tick_raw};
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), String> {
 //! let api_key = std::env::var("KITE_API_KEY").unwrap();
