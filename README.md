@@ -287,7 +287,8 @@ For maximum throughput with minimal allocations, you can work directly with raw 
 
 Key points:
 
-- Subscribe to raw frames via `subscribe_raw_frames()` on `KiteTickerAsync`
+- Subscribe to raw frames via `subscribe_raw_frames()` on `KiteTickerAsync`, or
+    via the manager using `get_raw_frame_channel(ChannelId)` or `get_all_raw_frame_channels()`
 - Extract packet bodies using their length prefixes
 - Create typed views with `as_tick_raw`, `as_index_quote_32`, or `as_inst_header_64`
 - The returned `zerocopy::Ref<&[u8], T>` dereferences to `&T` and is valid while the backing bytes live (store `Bytes` to keep alive)
@@ -319,3 +320,68 @@ Ok(())
 ```
 
 Safety: All raw structs derive `Unaligned` and use big-endian wrappers; no `unsafe` is required.
+
+### Manager-level raw frames
+
+```rust
+use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, ChannelId, as_tick_raw};
+
+# #[tokio::main]
+# async fn main() -> Result<(), String> {
+let api_key = std::env::var("KITE_API_KEY").unwrap();
+let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
+let mut mgr = KiteTickerManagerBuilder::new(api_key, access_token)
+    .raw_only(true)
+    .build();
+mgr.start().await?;
+mgr.subscribe_symbols(&[256265], Some(Mode::Full)).await?;
+
+for (id, mut rx) in mgr.get_all_raw_frame_channels() {
+    tokio::spawn(async move {
+        while let Ok(frame) = rx.recv().await {
+            if frame.len() < 2 { continue; }
+            let mut off = 2usize;
+            let num = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+            for _ in 0..num {
+                if off + 2 > frame.len() { break; }
+                let len = u16::from_be_bytes([frame[off], frame[off+1]]) as usize;
+                let body = frame.slice(off+2..off+2+len);
+                if len == 184 {
+                    if let Some(view) = as_tick_raw(&body) {
+                        let token = view.header.instrument_token.get();
+                        println!("conn={:?} token={}", id, token);
+                    }
+                }
+                off += 2 + len;
+            }
+        }
+    });
+}
+# Ok(()) }
+```
+
+Or, if you only want Full depth packets, use the helper:
+
+```rust
+use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, ChannelId, KiteTickerRawSubscriber184};
+
+# #[tokio::main]
+# async fn main() -> Result<(), String> {
+let api_key = std::env::var("KITE_API_KEY").unwrap();
+let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
+let mut mgr = KiteTickerManagerBuilder::new(api_key, access_token)
+    .raw_only(true)
+    .build();
+mgr.start().await?;
+mgr.subscribe_symbols(&[256265], Some(Mode::Full)).await?;
+
+if let Some(mut sub) = mgr.get_full_raw_subscriber(ChannelId::Connection1) {
+    tokio::spawn(async move {
+        while let Ok(Some(view)) = sub.recv_raw_tickraw().await {
+            let t = &*view; // &TickRaw
+            println!("token={} ltp={}", t.header.instrument_token.get(), t.header.last_price.get());
+        }
+    });
+}
+# Ok(()) }
+```

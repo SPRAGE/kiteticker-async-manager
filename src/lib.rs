@@ -173,7 +173,9 @@
 //! big-endian field wrappers.
 //!
 //! Key points:
-//! - Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()`, which yields `bytes::Bytes`.
+//! - Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()` or
+//!   `KiteTickerManager::get_raw_frame_channel(ChannelId)` / `get_all_raw_frame_channels()`,
+//!   which yield `bytes::Bytes` frames.
 //! - Extract packet bodies (length-prefixed) from a frame and select the size you need.
 //! - Use helpers like `as_tick_raw`, `as_index_quote_32`, and `as_inst_header_64` to obtain
 //!   `zerocopy::Ref<&[u8], T>` that dereferences to a typed view.
@@ -208,6 +210,42 @@
 //!     }
 //!   }
 //!   off += 2 + len;
+//! }
+//! # Ok(()) }
+//! ```
+//!
+//! Manager-level example (per-connection frames):
+//! ```rust,no_run
+//! use kiteticker_async_manager::{KiteTickerManagerBuilder, Mode, ChannelId, as_tick_raw};
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), String> {
+//! let api_key = std::env::var("KITE_API_KEY").unwrap();
+//! let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
+//! let mut mgr = KiteTickerManagerBuilder::new(api_key, access_token)
+//!   .raw_only(true)
+//!   .build();
+//! mgr.start().await?;
+//! mgr.subscribe_symbols(&[256265], Some(Mode::Full)).await?;
+//! for (id, mut rx) in mgr.get_all_raw_frame_channels() {
+//!   tokio::spawn(async move {
+//!     while let Ok(frame) = rx.recv().await {
+//!       if frame.len() < 2 { continue; }
+//!       let mut off = 2usize;
+//!       let num = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+//!       for _ in 0..num {
+//!         if off + 2 > frame.len() { break; }
+//!         let len = u16::from_be_bytes([frame[off], frame[off+1]]) as usize;
+//!         let body = frame.slice(off+2..off+2+len);
+//!         if len == 184 {
+//!           if let Some(view) = as_tick_raw(&body) {
+//!             let token = view.header.instrument_token.get();
+//!             let _ = (id, token);
+//!           }
+//!         }
+//!         off += 2 + len;
+//!       }
+//!     }
+//!   });
 //! }
 //! # Ok(()) }
 //! ```
@@ -250,3 +288,5 @@ pub use manager::{
   KiteTickerManagerBuilder, ManagerStats,
 };
 pub use ticker::{KiteTickerAsync, KiteTickerSubscriber};
+// Expose the raw 184-byte subscriber helper
+pub use ticker::KiteTickerRawSubscriber184;

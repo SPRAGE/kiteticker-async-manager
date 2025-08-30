@@ -65,7 +65,8 @@ Practical code examples organized by complexity:
 
 ### Zero-copy Raw Access (Advanced)
 
-- Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()`
+- Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()` or manager methods
+	(`get_raw_frame_channel`, `get_all_raw_frame_channels`)
 - Extract packet bodies using length prefixes (first 2 bytes = packet count, then [len, body] pairs)
 - Create typed, zero-copy views with helpers:
 	- `as_tick_raw` for 184-byte Full packets

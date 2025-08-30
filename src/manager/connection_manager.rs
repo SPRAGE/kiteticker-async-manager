@@ -414,6 +414,48 @@ impl KiteTickerManager {
     channels
   }
 
+  /// Get a raw frame receiver (bytes::Bytes per websocket frame) for a connection.
+  /// Returns None if the connection is not initialized.
+  pub fn get_raw_frame_channel(
+    &self,
+    channel_id: ChannelId,
+  ) -> Option<tokio::sync::broadcast::Receiver<bytes::Bytes>> {
+    self
+      .connections
+      .get(channel_id.to_index())
+      .and_then(|mc| mc.ticker.as_ref())
+      .map(|t| t.subscribe_raw_frames())
+  }
+
+  /// Convenience: create a 184-byte Full-tick raw subscriber for a connection.
+  /// Useful when operating in raw_only mode to consume only depth packets.
+  pub fn get_full_raw_subscriber(
+    &self,
+    channel_id: ChannelId,
+  ) -> Option<crate::KiteTickerRawSubscriber184> {
+    self
+      .connections
+      .get(channel_id.to_index())
+      .and_then(|mc| mc.ticker.as_ref())
+      .map(|t| t.subscribe_full_raw())
+  }
+
+  /// Convenience: get raw frame receivers for all initialized connections.
+  /// Each item is `(ChannelId, broadcast::Receiver<bytes::Bytes>)`.
+  pub fn get_all_raw_frame_channels(
+    &self,
+  ) -> Vec<(ChannelId, tokio::sync::broadcast::Receiver<bytes::Bytes>)> {
+    let mut out = Vec::with_capacity(self.connections.len());
+    for (i, mc) in self.connections.iter().enumerate() {
+      if let Some(ch) = ChannelId::from_index(i) {
+        if let Some(t) = mc.ticker.as_ref() {
+          out.push((ch, t.subscribe_raw_frames()));
+        }
+      }
+    }
+    out
+  }
+
   /// Get manager statistics
   pub async fn get_stats(&self) -> Result<ManagerStats, String> {
     if let Some(health_monitor) = &self.health_monitor {

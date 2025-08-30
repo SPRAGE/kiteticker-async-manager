@@ -174,6 +174,84 @@ for (channel_id, mut receiver) in channels {
 }
 ```
 
+### Raw frame access (zero-copy)
+
+You can consume raw WebSocket frames per connection to implement custom or zero-copy parsing.
+
+#### `get_raw_frame_channel()`
+
+```rust
+pub fn get_raw_frame_channel(
+    &self,
+    channel_id: ChannelId,
+) -> Option<tokio::sync::broadcast::Receiver<bytes::Bytes>>
+```
+
+Get a raw frame receiver for a specific connection.
+
+#### `get_all_raw_frame_channels()`
+
+```rust
+pub fn get_all_raw_frame_channels(
+    &self,
+) -> Vec<(ChannelId, tokio::sync::broadcast::Receiver<bytes::Bytes>)>
+```
+
+Get raw frame receivers for all initialized connections.
+
+#### `get_full_raw_subscriber()`
+
+```rust
+pub fn get_full_raw_subscriber(
+    &self,
+    channel_id: ChannelId,
+) -> Option<kiteticker_async_manager::KiteTickerRawSubscriber184>
+```
+
+Convenience helper to receive only 184-byte Full payloads as raw bytes or typed `TickRaw` views.
+
+**Example:**
+
+```rust
+use kiteticker_async_manager::{as_tick_raw, Mode, ChannelId};
+
+// Enable raw-only in the builder to skip parsed ticks and only emit raw frames
+// let mut manager = KiteTickerManagerBuilder::new(api_key, access_token)
+//     .raw_only(true)
+//     .build();
+
+// Per-connection raw frames
+for (id, mut rx) in manager.get_all_raw_frame_channels() {
+    tokio::spawn(async move {
+        while let Ok(frame) = rx.recv().await {
+            if frame.len() < 2 { continue; }
+            let mut off = 2usize;
+            let num = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+            for _ in 0..num {
+                if off + 2 > frame.len() { break; }
+                let len = u16::from_be_bytes([frame[off], frame[off+1]]) as usize;
+                let body = frame.slice(off+2..off+2+len);
+                if len == 184 {
+                    if let Some(view) = as_tick_raw(&body) {
+                        let token = view.header.instrument_token.get();
+                        let _ = (id, token);
+                    }
+                }
+                off += 2 + len;
+            }
+        }
+    });
+}
+
+// Or only Full payloads via helper
+if let Some(mut sub) = manager.get_full_raw_subscriber(ChannelId::Connection1) {
+    while let Ok(Some(view)) = sub.recv_raw_tickraw().await {
+        let token = view.header.instrument_token.get();
+        let _ = token;
+    }
+}
+```
+
 ### `get_symbol_distribution()`
 
 ```rust

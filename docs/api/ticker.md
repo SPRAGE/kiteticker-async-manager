@@ -56,11 +56,13 @@ async fn main() -> Result<(), String> {
 
 ## Receiving raw frames
 
-When constructed with `raw_only = true`, binary frames are forwarded as `TickerMessage::Raw(Vec<u8>)`.
-You can also subscribe to a zero-copy raw feed regardless of `raw_only` using:
+Subscribe to a zero-copy raw feed regardless of `raw_only` using:
 
 ```rust
-let raw_rx = ticker.subscribe_raw(); // returns broadcast::Receiver<Arc<[u8]>>
+let mut raw_rx = ticker.subscribe_raw_frames(); // broadcast::Receiver<bytes::Bytes>
+while let Ok(frame) = raw_rx.recv().await {
+  // frame is the full WebSocket frame bytes
+}
 ```
 
 ## Pinging
