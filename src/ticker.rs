@@ -416,7 +416,7 @@ fn process_message(
     }
     Message::Binary(binary_message) => {
       // Convert once to Bytes to avoid cloning the Vec for raw subscribers
-      let bytes = Bytes::from(binary_message);
+      let bytes = binary_message;
       let slice: &[u8] = &bytes;
       // publish raw first (cheap clone)
       let _ = raw_sender.send(bytes.clone());
