@@ -58,9 +58,8 @@ impl KiteTickerAsync {
       qp.append_pair("access_token", access_token);
     }
     // tokio-tungstenite >=0.27 accepts types implementing IntoClientRequest (Url is fine)
-    let (ws_stream, _resp) = connect_async(url.as_str())
-      .await
-      .map_err(|e| match e {
+    let (ws_stream, _resp) =
+      connect_async(url.as_str()).await.map_err(|e| match e {
         tokio_tungstenite::tungstenite::Error::Http(response) => {
           // Provide clearer context for HTTP handshake failures
           let status = response.status();
