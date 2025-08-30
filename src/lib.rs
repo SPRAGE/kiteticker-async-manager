@@ -234,14 +234,14 @@ pub mod manager;
 mod models;
 mod parser;
 pub use errors::ParseTickError;
+pub use models::tick_raw::{
+  as_184 as tick_as_184, as_index_quote_32, as_inst_header_64, as_tick_raw,
+  DepthItemRaw, DepthRaw, IndexQuoteRaw32, InstHeaderRaw64, TickHeaderRaw,
+  TickRaw, INDEX_QUOTE_SIZE, INST_HEADER_SIZE, TICK_FULL_SIZE,
+};
 pub use models::{
   Depth, DepthItem, Exchange, Mode, Order, OrderStatus, OrderTransactionType,
   OrderValidity, Request, TextMessage, Tick, TickMessage, TickerMessage, OHLC,
-};
-pub use models::tick_raw::{
-  TickRaw, TickHeaderRaw, DepthItemRaw, DepthRaw, TICK_FULL_SIZE,
-  INDEX_QUOTE_SIZE, INST_HEADER_SIZE, IndexQuoteRaw32, InstHeaderRaw64,
-  as_184 as tick_as_184, as_tick_raw, as_index_quote_32, as_inst_header_64
 };
 
 pub mod ticker;

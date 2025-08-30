@@ -1,6 +1,6 @@
 use kiteticker_async_manager::{
-  KiteTickerAsync, Mode, as_tick_raw, as_index_quote_32, as_inst_header_64,
-  INDEX_QUOTE_SIZE, INST_HEADER_SIZE
+  as_index_quote_32, as_inst_header_64, as_tick_raw, KiteTickerAsync, Mode,
+  INDEX_QUOTE_SIZE, INST_HEADER_SIZE,
 };
 
 #[tokio::main]
@@ -12,8 +12,12 @@ async fn main() -> Result<(), String> {
     return Ok(());
   }
 
-  let mut ticker = KiteTickerAsync::connect_with_options(&api_key, &access_token, true).await?;
-  let mut sub = ticker.subscribe(&[256265, 265, 260105,738561], Some(Mode::Full)).await?; // NIFTY 50, Sensex, Bank Nifty
+  let mut ticker =
+    KiteTickerAsync::connect_with_options(&api_key, &access_token, true)
+      .await?;
+  let mut sub = ticker
+    .subscribe(&[256265, 265, 260105, 738561], Some(Mode::Full))
+    .await?; // NIFTY 50, Sensex, Bank Nifty
 
   // Attach raw full-frame subscriber (we'll extract packets of any size)
   let mut frames = ticker.subscribe_raw_frames();
@@ -27,15 +31,22 @@ async fn main() -> Result<(), String> {
         break;
       }
     };
-    if frame.len() < 2 { continue; }
+    if frame.len() < 2 {
+      continue;
+    }
     let num_packets = u16::from_be_bytes([frame[0], frame[1]]) as usize;
     let mut start = 2usize;
     for i in 0..num_packets {
-      if start + 2 > frame.len() { break; }
-      let pkt_len = u16::from_be_bytes([frame[start], frame[start + 1]]) as usize;
+      if start + 2 > frame.len() {
+        break;
+      }
+      let pkt_len =
+        u16::from_be_bytes([frame[start], frame[start + 1]]) as usize;
       let body_start = start + 2;
       let end = body_start + pkt_len;
-      if end > frame.len() { break; }
+      if end > frame.len() {
+        break;
+      }
       let body = frame.slice(body_start..end);
       // Print minimal info
       if pkt_len >= 4 {
@@ -73,7 +84,14 @@ async fn main() -> Result<(), String> {
           let v = &*v_ref;
           println!(
             "INST64: token={} ltp={} vol={} ohlc=({},{},{},{}) exch_ts={}",
-            v.instrument_token.get(), v.ltp.get(), v.vol.get(), v.open.get(), v.high.get(), v.low.get(), v.close.get(), v.exch_ts.get()
+            v.instrument_token.get(),
+            v.ltp.get(),
+            v.vol.get(),
+            v.open.get(),
+            v.high.get(),
+            v.low.get(),
+            v.close.get(),
+            v.exch_ts.get()
           );
         }
       }

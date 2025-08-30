@@ -2,8 +2,8 @@ use crate::models::{
   Mode, Request, TextMessage, Tick, TickMessage, TickerMessage,
 };
 use crate::parser::packet_length;
-use futures_util::{SinkExt, StreamExt};
 use bytes::Bytes;
+use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -63,7 +63,7 @@ impl KiteTickerAsync {
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
     // Increase buffer size for high-frequency tick data
     let (msg_tx, _) = broadcast::channel(1000);
-  let (raw_tx, _) = broadcast::channel(1000);
+    let (raw_tx, _) = broadcast::channel(1000);
     let mut write = write_half;
     let writer_handle = tokio::spawn(async move {
       while let Some(msg) = cmd_rx.recv().await {
@@ -188,7 +188,11 @@ impl KiteTickerAsync {
     let mode_value = mode.cloned().unwrap_or_default();
     let msgs = vec![
       Message::Text(Request::subscribe(instrument_tokens).to_string().into()),
-      Message::Text(Request::mode(mode_value, instrument_tokens).to_string().into()),
+      Message::Text(
+        Request::mode(mode_value, instrument_tokens)
+          .to_string()
+          .into(),
+      ),
     ];
 
     for msg in msgs {
@@ -218,7 +222,8 @@ impl KiteTickerAsync {
   /// Send a ping to keep the connection alive
   pub async fn ping(&mut self) -> Result<(), String> {
     if let Some(tx) = &self.cmd_tx {
-  tx.send(Message::Ping(bytes::Bytes::new())).map_err(|e| e.to_string())?;
+      tx.send(Message::Ping(bytes::Bytes::new()))
+        .map_err(|e| e.to_string())?;
       Ok(())
     } else {
       Err("Connection is closed".to_string())
@@ -248,9 +253,11 @@ impl KiteTickerAsync {
   }
 
   /// Backward-compatible alias for subscribe_raw_frames.
-  #[deprecated(note = "use subscribe_raw_frames() instead; now returns bytes::Bytes")] 
-  pub fn subscribe_raw(&self) -> broadcast::Receiver<Bytes> { 
-    self.subscribe_raw_frames() 
+  #[deprecated(
+    note = "use subscribe_raw_frames() instead; now returns bytes::Bytes"
+  )]
+  pub fn subscribe_raw(&self) -> broadcast::Receiver<Bytes> {
+    self.subscribe_raw_frames()
   }
 
   /// Create a subscriber that yields only 184-byte Full tick payloads sliced from frames.
@@ -331,8 +338,9 @@ impl KiteTickerSubscriber {
     }
     if let Some(tx) = &self.cmd_tx {
       // send subscribe
-      let _ =
-  tx.send(Message::Text(Request::subscribe(&new_tokens).to_string().into()));
+      let _ = tx.send(Message::Text(
+        Request::subscribe(&new_tokens).to_string().into(),
+      ));
       if mode.is_some() {
         let _ = tx.send(Message::Text(
           Request::mode(default_mode, &new_tokens).to_string().into(),
@@ -353,7 +361,9 @@ impl KiteTickerSubscriber {
       return Ok(());
     }
     if let Some(tx) = &self.cmd_tx {
-  let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string().into()));
+      let _ = tx.send(Message::Text(
+        Request::mode(mode, &tokens).to_string().into(),
+      ));
     }
     Ok(())
   }
@@ -370,7 +380,9 @@ impl KiteTickerSubscriber {
       return Ok(());
     }
     if let Some(tx) = &self.cmd_tx {
-  let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string().into()));
+      let _ = tx.send(Message::Text(
+        Request::unsubscribe(&tokens).to_string().into(),
+      ));
     }
     self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
     Ok(())
@@ -399,7 +411,9 @@ fn process_message(
   raw_only: bool,
 ) -> Option<TickerMessage> {
   match message {
-  Message::Text(text_message) => process_text_message(text_message.to_string()),
+    Message::Text(text_message) => {
+      process_text_message(text_message.to_string())
+    }
     Message::Binary(binary_message) => {
       // Convert once to Bytes to avoid cloning the Vec for raw subscribers
       let bytes = Bytes::from(binary_message);
@@ -480,7 +494,9 @@ impl KiteTickerRawSubscriber184 {
   /// Returns `Some(zerocopy::Ref<&[u8], TickRaw>)` for a Full packet body (184 bytes), otherwise waits.
   /// The `Ref` dereferences to `&TickRaw` and stays valid until another method call that replaces
   /// the internal `Bytes` buffer.
-  pub async fn recv_raw_tickraw(&mut self) -> Result<Option<zerocopy::Ref<&[u8], crate::TickRaw>>, String> {
+  pub async fn recv_raw_tickraw(
+    &mut self,
+  ) -> Result<Option<zerocopy::Ref<&[u8], crate::TickRaw>>, String> {
     use crate::as_tick_raw;
     match self.recv_raw().await? {
       Some(bytes) => {
@@ -496,13 +512,18 @@ impl KiteTickerRawSubscriber184 {
   }
 
   /// Receive up to `max` 184-byte payloads from the next frame(s). This avoids per-packet awaits.
-  pub async fn recv_batch_raw(&mut self, max: usize) -> Result<Vec<Bytes>, String> {
+  pub async fn recv_batch_raw(
+    &mut self,
+    max: usize,
+  ) -> Result<Vec<Bytes>, String> {
     let mut out = Vec::with_capacity(max.max(1));
     while out.len() < max {
       match self.rx.recv().await {
         Ok(frame) => {
           extract_all_full_payloads(&frame, max - out.len(), &mut out);
-          if out.len() >= max { break; }
+          if out.len() >= max {
+            break;
+          }
           // continue to next frame if more needed
         }
         Err(broadcast::error::RecvError::Closed) => break,
@@ -515,15 +536,21 @@ impl KiteTickerRawSubscriber184 {
 
 #[inline]
 fn extract_first_full_payload(frame: &Bytes) -> Option<Bytes> {
-  if frame.len() < 2 { return None; }
+  if frame.len() < 2 {
+    return None;
+  }
   let mut start = 2usize;
   let num_packets = u16::from_be_bytes([frame[0], frame[1]]) as usize;
   for _ in 0..num_packets {
-    if start + 2 > frame.len() { return None; }
+    if start + 2 > frame.len() {
+      return None;
+    }
     let packet_len = packet_length(&frame[start..start + 2]);
     let body_start = start + 2;
     let next_start = body_start + packet_len;
-    if next_start > frame.len() { return None; }
+    if next_start > frame.len() {
+      return None;
+    }
     if packet_len == 184 {
       // slice reference into Bytes
       return Some(frame.slice(body_start..next_start));
@@ -534,22 +561,36 @@ fn extract_first_full_payload(frame: &Bytes) -> Option<Bytes> {
 }
 
 #[inline]
-fn extract_all_full_payloads(frame: &Bytes, limit: usize, out: &mut Vec<Bytes>) {
-  if frame.len() < 2 || limit == 0 { return; }
+fn extract_all_full_payloads(
+  frame: &Bytes,
+  limit: usize,
+  out: &mut Vec<Bytes>,
+) {
+  if frame.len() < 2 || limit == 0 {
+    return;
+  }
   let mut start = 2usize;
   let num_packets = u16::from_be_bytes([frame[0], frame[1]]) as usize;
   let mut cnt = 0usize;
   for _ in 0..num_packets {
-    if cnt >= limit { break; }
-    if start + 2 > frame.len() { break; }
+    if cnt >= limit {
+      break;
+    }
+    if start + 2 > frame.len() {
+      break;
+    }
     let packet_len = packet_length(&frame[start..start + 2]);
     let body_start = start + 2;
     let next_start = body_start + packet_len;
-    if next_start > frame.len() { break; }
+    if next_start > frame.len() {
+      break;
+    }
     if packet_len == 184 {
       out.push(frame.slice(body_start..next_start));
       cnt += 1;
-      if cnt >= limit { break; }
+      if cnt >= limit {
+        break;
+      }
     }
     start = next_start;
   }
