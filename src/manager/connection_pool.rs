@@ -170,9 +170,9 @@ impl ManagedConnection {
         // send subscribe + mode
         let sub = crate::models::Request::subscribe(&new).to_string();
         let mode_msg = crate::models::Request::mode(mode, &new).to_string();
-        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(sub));
+        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(sub.into()));
         let _ =
-          tx.send(tokio_tungstenite::tungstenite::Message::Text(mode_msg));
+          tx.send(tokio_tungstenite::tungstenite::Message::Text(mode_msg.into()));
       }
       for &s in &new {
         self.subscribed_symbols.insert(s, mode);
@@ -206,8 +206,8 @@ impl ManagedConnection {
         return Ok(());
       }
       if let Some(tx) = &self.cmd_tx {
-        let unsub = crate::models::Request::unsubscribe(&existing).to_string();
-        let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(unsub));
+  let unsub = crate::models::Request::unsubscribe(&existing).to_string();
+  let _ = tx.send(tokio_tungstenite::tungstenite::Message::Text(unsub.into()));
       }
       for s in &existing {
         self.subscribed_symbols.remove(s);

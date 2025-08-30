@@ -26,6 +26,7 @@ High-performance async WebSocket client for the [Kite Connect API](https://kite.
 - **📊 Load Balancing** - Automatic symbol distribution across connections
 - **💪 Production Ready** - Comprehensive error handling, health monitoring, reconnection
 - **🔧 Async-First Design** - Built with Tokio, follows Rust async best practices
+- **🧩 Zero-Copy Raw Access** - Optional, fully safe, endian-correct views over packet bytes
 
 ## 🚀 Quick Start
 
@@ -156,6 +157,8 @@ async fn main() -> Result<(), String> {
 ### ⚡ Performance Examples
 - **[Performance Demo](examples/performance/performance_demo.rs)** - Benchmarking
 - **[High Frequency](examples/performance/high_frequency.rs)** - Maximum throughput
+ - **[Raw vs Parsed](examples/performance/raw_vs_parsed.rs)** - Micro-benchmark of raw vs parsed
+ - **[Raw Full Peek](examples/performance/raw_full_peek.rs)** - Zero-copy field peeking for all packet sizes
 
 ## 🎯 Use Cases
 
@@ -229,6 +232,8 @@ export KITE_ACCESS_TOKEN=your_access_token
 # Run examples
 cargo run --example single_connection
 cargo run --example dynamic_subscription_demo
+cargo run --example raw_full_peek --release
+cargo run --example raw_vs_parsed --release
 ```
 
 ### Available Tasks
@@ -275,3 +280,42 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 ---
 
 **⭐ Star this repository if you find it useful!**
+
+## 🔬 Zero-copy raw access (advanced)
+
+For maximum throughput with minimal allocations, you can work directly with raw WebSocket frame bytes and view packet bodies using endian-safe, zero-copy structs.
+
+Key points:
+
+- Subscribe to raw frames via `subscribe_raw_frames()` on `KiteTickerAsync`
+- Extract packet bodies using their length prefixes
+- Create typed views with `as_tick_raw`, `as_index_quote_32`, or `as_inst_header_64`
+- The returned `zerocopy::Ref<&[u8], T>` dereferences to `&T` and is valid while the backing bytes live (store `Bytes` to keep alive)
+
+Example snippet:
+
+```rust
+use kiteticker_async_manager::{KiteTickerAsync, Mode, as_tick_raw};
+use bytes::Bytes;
+
+# async fn demo(mut ticker: KiteTickerAsync) -> Result<(), String> {
+let mut frames = ticker.subscribe_raw_frames();
+let frame: Bytes = frames.recv().await.unwrap();
+let num = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+let mut off = 2usize;
+for _ in 0..num {
+    let len = u16::from_be_bytes([frame[off], frame[off+1]]) as usize;
+    let body = frame.slice(off+2..off+2+len);
+    if len == 184 {
+        if let Some(view_ref) = as_tick_raw(&body) {
+            let tick = &*view_ref;
+            println!("token={} ltp_scaled={}", tick.header.instrument_token.get(), tick.header.last_price.get());
+        }
+    }
+    off += 2 + len;
+}
+Ok(())
+# }
+```
+
+Safety: All raw structs derive `Unaligned` and use big-endian wrappers; no `unsafe` is required.

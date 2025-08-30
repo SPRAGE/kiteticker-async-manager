@@ -165,9 +165,59 @@
 //! - **`Mode::Quote`** - Price + volume + OHLC (standard data)
 //! - **`Mode::Full`** - Complete market depth (maximum data)
 //!
+//! ## Zero-copy raw access (advanced)
+//!
+//! For maximum throughput and minimal allocations, you can work directly with the raw
+//! WebSocket frame bytes and view individual packets using zero-copy, endian-safe types.
+//! This is fully safe and avoids undefined behavior by using `zerocopy::Ref` and
+//! big-endian field wrappers.
+//!
+//! Key points:
+//! - Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()`, which yields `bytes::Bytes`.
+//! - Extract packet bodies (length-prefixed) from a frame and select the size you need.
+//! - Use helpers like `as_tick_raw`, `as_index_quote_32`, and `as_inst_header_64` to obtain
+//!   `zerocopy::Ref<&[u8], T>` that dereferences to a typed view.
+//! - The `Ref` is valid as long as the backing bytes live; examples store `Bytes` to keep it alive.
+//!
+//! Example (snippets):
+//! ```rust,no_run
+//! use kiteticker_async_manager::{KiteTickerAsync, Mode, as_tick_raw};
+//! use bytes::Bytes;
+//!
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), String> {
+//! let api_key = std::env::var("KITE_API_KEY").unwrap();
+//! let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap();
+//! let mut ticker = KiteTickerAsync::connect_with_options(&api_key, &access_token, true).await?;
+//! let _sub = ticker.subscribe(&[256265], Some(Mode::Full)).await?;
+//! let mut frames = ticker.subscribe_raw_frames();
+//!
+//! // Receive a frame and pull out a 184-byte Full packet body
+//! let frame: Bytes = frames.recv().await.unwrap();
+//! let num = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+//! let mut off = 2usize;
+//! for _ in 0..num {
+//!   let len = u16::from_be_bytes([frame[off], frame[off+1]]) as usize;
+//!   let body = frame.slice(off+2..off+2+len);
+//!   if len == 184 {
+//!     if let Some(view_ref) = as_tick_raw(&body) {
+//!       let tick = &*view_ref; // &TickRaw
+//!       let token = tick.header.instrument_token.get();
+//!       let ltp_scaled = tick.header.last_price.get();
+//!       // ... use fields ...
+//!     }
+//!   }
+//!   off += 2 + len;
+//! }
+//! # Ok(()) }
+//! ```
+//!
+//! Safety model: all raw structs derive `Unaligned` and use `big_endian` wrappers for integer fields.
+//! `as_*` helpers return `Option<zerocopy::Ref<&[u8], T>>` which validates size and alignment. No `unsafe` is required.
+//!
 //! ## Examples
 //!
-//! See the [examples directory](https://github.com/kaychaks/kiteticker-async/tree/master/examples) for:
+//! See the [examples directory](https://github.com/SPRAGE/kiteticker-async-manager/tree/main/examples) for:
 //!
 //! - **Basic Examples** - Simple usage patterns
 //! - **Advanced Examples** - Complex multi-connection scenarios  
@@ -175,10 +225,10 @@
 //!
 //! ## Documentation
 //!
-//! - [Getting Started Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/getting-started.md)
-//! - [API Reference](https://github.com/kaychaks/kiteticker-async/blob/master/docs/api/)
-//! - [Dynamic Subscriptions](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)
-//! - [Performance Guide](https://github.com/kaychaks/kiteticker-async/blob/master/docs/guides/PERFORMANCE_IMPROVEMENTS.md)
+//! - [Getting Started Guide](https://github.com/SPRAGE/kiteticker-async-manager/blob/main/docs/guides/getting-started.md)
+//! - [API Reference](https://github.com/SPRAGE/kiteticker-async-manager/tree/main/docs/api)
+//! - [Dynamic Subscriptions](https://github.com/SPRAGE/kiteticker-async-manager/blob/main/docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)
+//! - [Performance Guide](https://github.com/SPRAGE/kiteticker-async-manager/blob/main/docs/guides/PERFORMANCE_IMPROVEMENTS.md)
 mod errors;
 pub mod manager;
 mod models;
@@ -187,6 +237,11 @@ pub use errors::ParseTickError;
 pub use models::{
   Depth, DepthItem, Exchange, Mode, Order, OrderStatus, OrderTransactionType,
   OrderValidity, Request, TextMessage, Tick, TickMessage, TickerMessage, OHLC,
+};
+pub use models::tick_raw::{
+  TickRaw, TickHeaderRaw, DepthItemRaw, DepthRaw, TICK_FULL_SIZE,
+  INDEX_QUOTE_SIZE, INST_HEADER_SIZE, IndexQuoteRaw32, InstHeaderRaw64,
+  as_184 as tick_as_184, as_tick_raw, as_index_quote_32, as_inst_header_64
 };
 
 pub mod ticker;

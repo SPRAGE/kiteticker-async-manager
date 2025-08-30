@@ -63,6 +63,20 @@ Practical code examples organized by complexity:
 - **Sub-microsecond latency** for data processing
 - **Memory-efficient** data structures
 
+### Zero-copy Raw Access (Advanced)
+
+- Subscribe to raw frames via `KiteTickerAsync::subscribe_raw_frames()`
+- Extract packet bodies using length prefixes (first 2 bytes = packet count, then [len, body] pairs)
+- Create typed, zero-copy views with helpers:
+	- `as_tick_raw` for 184-byte Full packets
+	- `as_index_quote_32` for 32-byte index packets
+	- `as_inst_header_64` for 64-byte instrument headers
+- Safety model: all raw structs derive `Unaligned` and use big-endian wrappers; `as_*` helpers return `Option<zerocopy::Ref<&[u8], T>>` after size validation.
+
+See examples:
+- `examples/performance/raw_full_peek.rs`
+- `examples/performance/raw_vs_parsed.rs`
+
 ## 📊 Feature Comparison
 
 | Feature | Single Connection | Multi-Connection Manager |
@@ -117,5 +131,5 @@ For bug reports:
 ---
 
 **📝 Documentation Version**: Latest  
-**📅 Last Updated**: June 2025  
+**📅 Last Updated**: August 2025  
 **✨ Contributors**: See [GitHub Contributors](https://github.com/SPRAGE/kiteticker-async-manager/graphs/contributors)

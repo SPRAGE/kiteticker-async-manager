@@ -532,8 +532,7 @@ impl KiteTickerManager {
       // Send mode request directly via command sender if available
       if let Some(ref cmd) = connection.cmd_tx {
         let mode_req = crate::models::Request::mode(mode, &symbols).to_string();
-        let _ =
-          cmd.send(tokio_tungstenite::tungstenite::Message::Text(mode_req));
+        let _ = cmd.send(tokio_tungstenite::tungstenite::Message::Text(mode_req.into()));
         for &s in &symbols {
           connection.subscribed_symbols.insert(s, mode);
         }

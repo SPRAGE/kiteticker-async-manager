@@ -23,34 +23,34 @@ doc = true
 [[example]]
 name = "single_connection"
 path = "examples/basic/single_connection.rs"
-doc = true
+doc = false
 
 [[example]]
 name = "portfolio_monitor"
 path = "examples/basic/portfolio_monitor.rs"
-doc = true
+doc = false
 
 [[example]]
 name = "runtime_subscription_example"
 path = "examples/basic/runtime_subscription_example.rs"
-doc = true
+doc = false
 
 # Advanced Examples - Complex scenarios and advanced features
 [[example]]
 name = "dynamic_subscription_demo"
 path = "examples/dynamic_subscription_demo.rs"
-doc = true
+doc = false
 
 [[example]]
 name = "manager_demo"
 path = "examples/advanced/manager_demo.rs"
-doc = true
+doc = false
 
 # Performance Examples - Performance optimization and benchmarking
 [[example]]
 name = "performance_demo"
 path = "examples/performance/performance_demo.rs"
-doc = true
+doc = false
 
 
 
@@ -58,17 +58,20 @@ doc = true
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_repr = "0.1"
-tokio = { version = "1.28.2", features = ["full"] }
-tokio-tungstenite = { version = "0.20.1", features = ["native-tls"] }
-futures-util = { version = "0.3.28", features = ["sink"] }
-tokio-stream = { version = "0.1.14", features = ["full"] }
-url = "2.4.1"
-serde_with = "3.4.0"
-chrono = { version = "0.4.31", features = ["serde"] }
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.27", features = ["native-tls"] }
+futures-util = { version = "0.3", features = ["sink"] }
+tokio-stream = { version = "0.1", features = ["full"] }
+url = "2.5"
+serde_with = "3.14"
+chrono = { version = "0.4.41", features = ["serde"] }
 byteorder = "1.5"
 log = "0.4"
 env_logger = "0.11"
-smallvec = "1.13"
+smallvec = "1.15"
+bytes = "1.10"
+bytemuck = { version = "1.23", features = ["derive"] }
+zerocopy = { version = "0.8.26", features = ["derive"] }
 
 [dev-dependencies]
 base64 = "0.22"
@@ -77,14 +80,14 @@ base64 = "0.22"
 [[example]]
 name = "market_scanner"
 path = "examples/performance/market_scanner.rs"
-doc = true
+doc = false
 
 
 
 [[example]]
 name = "high_frequency"
 path = "examples/performance/high_frequency.rs"
-doc = true
+doc = false
 
 
 # Docs.rs configuration to generate comprehensive docs
@@ -96,3 +99,13 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "parse_full_quote_bench"
 path = "examples/performance/parse_full_quote_bench.rs"
 doc = false
+
+[[example]]
+name = "raw_full_peek"
+path = "examples/performance/raw_full_peek.rs"
+doc = true
+
+[[example]]
+name = "raw_vs_parsed"
+path = "examples/performance/raw_vs_parsed.rs"
+doc = true

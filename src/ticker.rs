@@ -3,6 +3,7 @@ use crate::models::{
 };
 use crate::parser::packet_length;
 use futures_util::{SinkExt, StreamExt};
+use bytes::Bytes;
 use serde_json::json;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ pub struct KiteTickerAsync {
   access_token: String,
   cmd_tx: Option<mpsc::UnboundedSender<Message>>,
   msg_tx: broadcast::Sender<TickerMessage>,
-  raw_tx: broadcast::Sender<Arc<[u8]>>, // raw binary frames
+  raw_tx: broadcast::Sender<Bytes>, // raw binary frames
   #[allow(dead_code)]
   raw_only: bool, // if true, skip parsing and emit raw frames as TickerMessage::Raw
   writer_handle: Option<JoinHandle<()>>,
@@ -52,16 +53,17 @@ impl KiteTickerAsync {
       "wss://{}?api_key={}&access_token={}",
       "ws.kite.trade", api_key, access_token
     );
-    let url = url::Url::parse(socket_url.as_str()).unwrap();
-
-    let (ws_stream, _) = connect_async(url).await.map_err(|e| e.to_string())?;
+    // tokio-tungstenite >=0.27 expects IntoClientRequest; pass the URL as &str/String
+    let (ws_stream, _) = connect_async(socket_url.as_str())
+      .await
+      .map_err(|e| e.to_string())?;
 
     let (write_half, mut read_half) = ws_stream.split();
 
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel::<Message>();
     // Increase buffer size for high-frequency tick data
     let (msg_tx, _) = broadcast::channel(1000);
-    let (raw_tx, _) = broadcast::channel(1000);
+  let (raw_tx, _) = broadcast::channel(1000);
     let mut write = write_half;
     let writer_handle = tokio::spawn(async move {
       while let Some(msg) = cmd_rx.recv().await {
@@ -185,8 +187,8 @@ impl KiteTickerAsync {
   ) -> Result<(), String> {
     let mode_value = mode.cloned().unwrap_or_default();
     let msgs = vec![
-      Message::Text(Request::subscribe(instrument_tokens).to_string()),
-      Message::Text(Request::mode(mode_value, instrument_tokens).to_string()),
+      Message::Text(Request::subscribe(instrument_tokens).to_string().into()),
+      Message::Text(Request::mode(mode_value, instrument_tokens).to_string().into()),
     ];
 
     for msg in msgs {
@@ -216,7 +218,7 @@ impl KiteTickerAsync {
   /// Send a ping to keep the connection alive
   pub async fn ping(&mut self) -> Result<(), String> {
     if let Some(tx) = &self.cmd_tx {
-      tx.send(Message::Ping(vec![])).map_err(|e| e.to_string())?;
+  tx.send(Message::Ping(bytes::Bytes::new())).map_err(|e| e.to_string())?;
       Ok(())
     } else {
       Err("Connection is closed".to_string())
@@ -235,9 +237,35 @@ impl KiteTickerAsync {
     1000 // This matches our increased buffer size
   }
 
-  /// Subscribe to raw binary frames (zero-copy). Each item is an Arc<[u8]> of the full tungstenite binary frame.
-  pub fn subscribe_raw(&self) -> broadcast::Receiver<Arc<[u8]>> {
+  /// Subscribe to raw binary frames (zero-copy). Each item is the full websocket frame bytes.
+  ///
+  /// Use this to implement custom parsing or zero-copy peeking on packet bodies.
+  /// Each emitted item is a `bytes::Bytes` that shares the underlying frame buffer (clone is cheap).
+  ///
+  /// See the crate-level docs for an end-to-end example of slicing packet bodies from a frame.
+  pub fn subscribe_raw_frames(&self) -> broadcast::Receiver<Bytes> {
     self.raw_tx.subscribe()
+  }
+
+  /// Backward-compatible alias for subscribe_raw_frames.
+  #[deprecated(note = "use subscribe_raw_frames() instead; now returns bytes::Bytes")] 
+  pub fn subscribe_raw(&self) -> broadcast::Receiver<Bytes> { 
+    self.subscribe_raw_frames() 
+  }
+
+  /// Create a subscriber that yields only 184-byte Full tick payloads sliced from frames.
+  ///
+  /// The returned subscriber exposes convenience methods to receive raw `Bytes`, a fixed `[u8;184]`
+  /// reference, or a `zerocopy::Ref<&[u8], TickRaw>` view via `recv_raw_tickraw`.
+  ///
+  /// Note: the typed `Ref` returned by `recv_raw_tickraw` is valid until the next method call that
+  /// overwrites the internal buffer. If you need to hold onto the data longer, clone the `Bytes` and
+  /// re-create the view as needed using `as_tick_raw`.
+  pub fn subscribe_full_raw(&self) -> KiteTickerRawSubscriber184 {
+    KiteTickerRawSubscriber184 {
+      rx: self.raw_tx.subscribe(),
+      last_payload: None,
+    }
   }
 
   /// Get a clone of the internal command sender for incremental ops
@@ -304,10 +332,10 @@ impl KiteTickerSubscriber {
     if let Some(tx) = &self.cmd_tx {
       // send subscribe
       let _ =
-        tx.send(Message::Text(Request::subscribe(&new_tokens).to_string()));
+  tx.send(Message::Text(Request::subscribe(&new_tokens).to_string().into()));
       if mode.is_some() {
         let _ = tx.send(Message::Text(
-          Request::mode(default_mode, &new_tokens).to_string(),
+          Request::mode(default_mode, &new_tokens).to_string().into(),
         ));
       }
     }
@@ -325,7 +353,7 @@ impl KiteTickerSubscriber {
       return Ok(());
     }
     if let Some(tx) = &self.cmd_tx {
-      let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string()));
+  let _ = tx.send(Message::Text(Request::mode(mode, &tokens).to_string().into()));
     }
     Ok(())
   }
@@ -342,7 +370,7 @@ impl KiteTickerSubscriber {
       return Ok(());
     }
     if let Some(tx) = &self.cmd_tx {
-      let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string()));
+  let _ = tx.send(Message::Text(Request::unsubscribe(&tokens).to_string().into()));
     }
     self.subscribed_tokens.retain(|k, _| !tokens.contains(k));
     Ok(())
@@ -367,17 +395,17 @@ impl KiteTickerSubscriber {
 
 fn process_message(
   message: Message,
-  raw_sender: &broadcast::Sender<Arc<[u8]>>,
+  raw_sender: &broadcast::Sender<Bytes>,
   raw_only: bool,
 ) -> Option<TickerMessage> {
   match message {
-    Message::Text(text_message) => process_text_message(text_message),
+  Message::Text(text_message) => process_text_message(text_message.to_string()),
     Message::Binary(binary_message) => {
-      // Convert once to Arc<[u8]> to avoid cloning the Vec for raw subscribers
-      let arc = Arc::<[u8]>::from(binary_message.into_boxed_slice());
-      let slice: &[u8] = &arc;
-      // publish raw first (cheap arc clone)
-      let _ = raw_sender.send(arc.clone());
+      // Convert once to Bytes to avoid cloning the Vec for raw subscribers
+      let bytes = Bytes::from(binary_message);
+      let slice: &[u8] = &bytes;
+      // publish raw first (cheap clone)
+      let _ = raw_sender.send(bytes.clone());
       if raw_only {
         // In raw-only mode, rely solely on raw_tx broadcast to deliver zero-copy frames.
         // Do not emit a TickerMessage to avoid extra allocations or duplicates.
@@ -399,6 +427,131 @@ fn process_message(
     Message::Ping(_) => None,
     Message::Pong(_) => None,
     Message::Frame(_) => None,
+  }
+}
+
+#[derive(Debug)]
+/// Subscriber that yields raw 184-byte payloads (Mode::Full) extracted from incoming frames.
+pub struct KiteTickerRawSubscriber184 {
+  rx: broadcast::Receiver<Bytes>,
+  // Keep last payload alive for reference-returning APIs
+  last_payload: Option<Bytes>,
+}
+
+impl KiteTickerRawSubscriber184 {
+  /// Receive the next 184-byte payload, if any frame contains it. Skips non-Full packets.
+  /// Returns Bytes that points to the underlying frame memory (zero-copy); slice is cloned out.
+  pub async fn recv_raw(&mut self) -> Result<Option<Bytes>, String> {
+    loop {
+      match self.rx.recv().await {
+        Ok(frame) => {
+          if let Some(bytes) = extract_first_full_payload(&frame) {
+            self.last_payload = Some(bytes.clone());
+            return Ok(Some(bytes));
+          }
+          // else keep looping for next frame
+        }
+        Err(broadcast::error::RecvError::Closed) => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+      }
+    }
+  }
+
+  /// Receive next payload and return a reference to a fixed 184-byte array.
+  /// The reference remains valid until the next call that overwrites internal buffer.
+  pub async fn recv_raw_ref(&mut self) -> Result<Option<&[u8; 184]>, String> {
+    use crate::tick_as_184 as as_184;
+    match self.recv_raw().await? {
+      Some(bytes) => {
+        // Store to keep alive, then take a ref from stored bytes
+        self.last_payload = Some(bytes);
+        if let Some(ref b) = self.last_payload {
+          Ok(as_184(b))
+        } else {
+          Ok(None)
+        }
+      }
+      None => Ok(None),
+    }
+  }
+
+  /// Receive next payload and return a zero-copy typed view `TickRaw`.
+  ///
+  /// Returns `Some(zerocopy::Ref<&[u8], TickRaw>)` for a Full packet body (184 bytes), otherwise waits.
+  /// The `Ref` dereferences to `&TickRaw` and stays valid until another method call that replaces
+  /// the internal `Bytes` buffer.
+  pub async fn recv_raw_tickraw(&mut self) -> Result<Option<zerocopy::Ref<&[u8], crate::TickRaw>>, String> {
+    use crate::as_tick_raw;
+    match self.recv_raw().await? {
+      Some(bytes) => {
+        self.last_payload = Some(bytes.clone());
+        if let Some(ref b) = self.last_payload {
+          Ok(as_tick_raw(b))
+        } else {
+          Ok(None)
+        }
+      }
+      None => Ok(None),
+    }
+  }
+
+  /// Receive up to `max` 184-byte payloads from the next frame(s). This avoids per-packet awaits.
+  pub async fn recv_batch_raw(&mut self, max: usize) -> Result<Vec<Bytes>, String> {
+    let mut out = Vec::with_capacity(max.max(1));
+    while out.len() < max {
+      match self.rx.recv().await {
+        Ok(frame) => {
+          extract_all_full_payloads(&frame, max - out.len(), &mut out);
+          if out.len() >= max { break; }
+          // continue to next frame if more needed
+        }
+        Err(broadcast::error::RecvError::Closed) => break,
+        Err(e) => return Err(e.to_string()),
+      }
+    }
+    Ok(out)
+  }
+}
+
+#[inline]
+fn extract_first_full_payload(frame: &Bytes) -> Option<Bytes> {
+  if frame.len() < 2 { return None; }
+  let mut start = 2usize;
+  let num_packets = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+  for _ in 0..num_packets {
+    if start + 2 > frame.len() { return None; }
+    let packet_len = packet_length(&frame[start..start + 2]);
+    let body_start = start + 2;
+    let next_start = body_start + packet_len;
+    if next_start > frame.len() { return None; }
+    if packet_len == 184 {
+      // slice reference into Bytes
+      return Some(frame.slice(body_start..next_start));
+    }
+    start = next_start;
+  }
+  None
+}
+
+#[inline]
+fn extract_all_full_payloads(frame: &Bytes, limit: usize, out: &mut Vec<Bytes>) {
+  if frame.len() < 2 || limit == 0 { return; }
+  let mut start = 2usize;
+  let num_packets = u16::from_be_bytes([frame[0], frame[1]]) as usize;
+  let mut cnt = 0usize;
+  for _ in 0..num_packets {
+    if cnt >= limit { break; }
+    if start + 2 > frame.len() { break; }
+    let packet_len = packet_length(&frame[start..start + 2]);
+    let body_start = start + 2;
+    let next_start = body_start + packet_len;
+    if next_start > frame.len() { break; }
+    if packet_len == 184 {
+      out.push(frame.slice(body_start..next_start));
+      cnt += 1;
+      if cnt >= limit { break; }
+    }
+    start = next_start;
   }
 }
 
