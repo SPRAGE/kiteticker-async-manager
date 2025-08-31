@@ -16,10 +16,9 @@ Simple, focused examples perfect for getting started:
 
 Complex scenarios and advanced features:
 
-- **[dynamic_subscription_demo.rs](advanced/dynamic_subscription_demo.rs)** - Complete dynamic subscription workflow
+- **[dynamic_subscription_demo.rs](../dynamic_subscription_demo.rs)** - Complete dynamic subscription workflow
 - **[manager_demo.rs](advanced/manager_demo.rs)** - Multi-connection manager demonstration
-- **[market_scanner.rs](advanced/market_scanner.rs)** - High-volume market scanning
-- **[algorithmic_trading.rs](advanced/algorithmic_trading.rs)** - Trading strategy implementation
+- **[manager_raw_full_peek.rs](advanced/manager_raw_full_peek.rs)** - Multi-connection manager in raw-only mode with zero-copy packet views
 
 ### ⚡ [Performance Examples](performance/)
 
@@ -27,6 +26,9 @@ Performance optimization and benchmarking:
 
 - **[performance_demo.rs](performance/performance_demo.rs)** - Performance testing and metrics
 - **[high_frequency.rs](performance/high_frequency.rs)** - High-frequency data processing
+- **[raw_full_peek.rs](performance/raw_full_peek.rs)** - Zero-copy peek of raw packets (184/64/32)
+- **[raw_vs_parsed.rs](performance/raw_vs_parsed.rs)** - Compare overhead parsed vs raw-only
+- **[market_scanner.rs](performance/market_scanner.rs)** - Efficient scanning across many symbols
 
 ## 🚀 Running Examples
 
@@ -57,14 +59,26 @@ cargo run --example basic/single_connection
 ### Advanced Examples
 
 ```bash
-# Complete dynamic subscription demo
-cargo run --example advanced/dynamic_subscription_demo
+# Complete dynamic subscription demo (top-level example)
+cargo run --example dynamic_subscription_demo
 
 # Multi-connection manager
 cargo run --example advanced/manager_demo
 
-# Market scanning with 9000 symbols
-cargo run --example advanced/market_scanner
+### Performance Examples
+
+```bash
+# Performance benchmarking
+cargo run --example performance/performance_demo
+
+# High-frequency processing
+cargo run --example performance/high_frequency
+
+# Raw frame peek helpers
+cargo run --example performance/raw_full_peek
+cargo run --example performance/raw_vs_parsed
+cargo run --example performance/market_scanner
+```
 ```
 
 ### Performance Examples
@@ -82,7 +96,7 @@ cargo run --example performance/high_frequency
 ### Quick Start Pattern
 
 ```rust
-use kiteticker_async::{KiteTickerManager, KiteManagerConfig, Mode};
+use kiteticker_async_manager::{KiteTickerManager, KiteManagerConfig, Mode};
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
