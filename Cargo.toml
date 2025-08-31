@@ -46,6 +46,12 @@ name = "manager_demo"
 path = "examples/advanced/manager_demo.rs"
 doc = false
 
+# Combined Advanced Raw Example
+[[example]]
+name = "manager_raw_full_peek"
+path = "examples/advanced/manager_raw_full_peek.rs"
+doc = false
+
 # Performance Examples - Performance optimization and benchmarking
 [[example]]
 name = "performance_demo"
