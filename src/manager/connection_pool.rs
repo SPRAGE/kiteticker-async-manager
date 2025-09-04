@@ -86,7 +86,7 @@ impl ManagedConnection {
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap_or_default()
       .as_secs();
-    self.last_ping.store(now_sec as u64, Ordering::Relaxed);
+    self.last_ping.store(now_sec, Ordering::Relaxed);
     self.ticker = Some(ticker);
     self.start_heartbeat_watcher();
     // Set configured liveness threshold
@@ -123,7 +123,7 @@ impl ManagedConnection {
               .duration_since(std::time::UNIX_EPOCH)
               .unwrap_or_default()
               .as_secs();
-            last_ping.store(now as u64, Ordering::Relaxed);
+            last_ping.store(now, Ordering::Relaxed);
           }
           Err(tokio::sync::broadcast::error::RecvError::Closed) => {
             log::debug!(
@@ -172,7 +172,7 @@ impl ManagedConnection {
       .as_secs();
     self
       .last_ping
-      .store(now_sec as u64, std::sync::atomic::Ordering::Relaxed);
+      .store(now_sec, std::sync::atomic::Ordering::Relaxed);
     self.ticker = Some(ticker);
     self.start_heartbeat_watcher();
     self
