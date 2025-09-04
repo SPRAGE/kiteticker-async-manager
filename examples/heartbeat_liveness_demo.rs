@@ -8,7 +8,9 @@ async fn main() -> Result<(), String> {
   let api_key = std::env::var("KITE_API_KEY").unwrap_or_default();
   let access_token = std::env::var("KITE_ACCESS_TOKEN").unwrap_or_default();
   if api_key.is_empty() || access_token.is_empty() {
-    eprintln!("Set KITE_API_KEY and KITE_ACCESS_TOKEN env vars to run this example.");
+    eprintln!(
+      "Set KITE_API_KEY and KITE_ACCESS_TOKEN env vars to run this example."
+    );
     return Ok(());
   }
 
@@ -24,7 +26,9 @@ async fn main() -> Result<(), String> {
 
   // Subscribe to a quiet symbol to see heartbeats keep the connection alive
   // Replace with a token valid for your account/segment
-  manager.subscribe_symbols(&[256265], Some(Mode::Quote)).await?;
+  manager
+    .subscribe_symbols(&[256265], Some(Mode::Quote))
+    .await?;
 
   // Periodically print health summary
   for _ in 0..10 {

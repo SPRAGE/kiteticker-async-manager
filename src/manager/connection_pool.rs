@@ -51,7 +51,7 @@ impl ManagedConnection {
       is_healthy: Arc::new(AtomicBool::new(false)),
       last_ping: Arc::new(AtomicU64::new(0)),
       task_handle: None,
-  heartbeat_handle: None,
+      heartbeat_handle: None,
       message_sender,
       api_key: String::new(),
       access_token: String::new(),
@@ -80,7 +80,7 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-  self.cmd_tx = ticker.command_sender();
+    self.cmd_tx = ticker.command_sender();
     // Initialize last_ping to now and start heartbeat watcher
     let now_sec = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)
@@ -90,8 +90,7 @@ impl ManagedConnection {
     self.ticker = Some(ticker);
     self.start_heartbeat_watcher();
     // Set configured liveness threshold
-    self.heartbeat_liveness_threshold =
-      config.heartbeat_liveness_threshold;
+    self.heartbeat_liveness_threshold = config.heartbeat_liveness_threshold;
     self.is_healthy.store(true, Ordering::Relaxed);
 
     // Update stats
@@ -110,7 +109,9 @@ impl ManagedConnection {
     if let Some(h) = self.heartbeat_handle.take() {
       h.abort();
     }
-    let Some(ticker) = self.ticker.as_ref() else { return; };
+    let Some(ticker) = self.ticker.as_ref() else {
+      return;
+    };
     let mut rx = ticker.subscribe_raw_frames();
     let last_ping = Arc::clone(&self.last_ping);
     let id = self.id;
@@ -163,21 +164,22 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-  self.cmd_tx = ticker.command_sender();
+    self.cmd_tx = ticker.command_sender();
     // Initialize last_ping to now and start heartbeat watcher
     let now_sec = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap_or_default()
       .as_secs();
-    self.last_ping.store(now_sec as u64, std::sync::atomic::Ordering::Relaxed);
+    self
+      .last_ping
+      .store(now_sec as u64, std::sync::atomic::Ordering::Relaxed);
     self.ticker = Some(ticker);
     self.start_heartbeat_watcher();
     self
       .is_healthy
       .store(true, std::sync::atomic::Ordering::Relaxed);
     // Set configured liveness threshold
-    self.heartbeat_liveness_threshold =
-      config.heartbeat_liveness_threshold;
+    self.heartbeat_liveness_threshold = config.heartbeat_liveness_threshold;
     {
       let mut stats = self.stats.write().await;
       stats.is_connected = true;
