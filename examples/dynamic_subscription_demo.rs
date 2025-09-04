@@ -51,6 +51,7 @@ async fn main() -> Result<(), String> {
     reconnect_delay: Duration::from_secs(2),
     enable_dedicated_parsers: true,
     default_mode: Mode::LTP, // Start with LTP for efficiency
+    heartbeat_liveness_threshold: Duration::from_secs(10),
   };
 
   println!("🔧 Configuration for Dynamic Operations:");

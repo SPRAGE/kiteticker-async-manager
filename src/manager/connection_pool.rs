@@ -20,12 +20,16 @@ pub struct ManagedConnection {
   pub is_healthy: Arc<AtomicBool>,
   pub last_ping: Arc<AtomicU64>, // Unix timestamp
   pub task_handle: Option<JoinHandle<()>>,
+  // Background watcher to update last_ping on any inbound frame (including heartbeats)
+  pub heartbeat_handle: Option<JoinHandle<()>>,
   pub message_sender: mpsc::UnboundedSender<TickerMessage>,
   // Store credentials for dynamic operations
   api_key: String,
   access_token: String,
   pub(crate) cmd_tx:
     Option<mpsc::UnboundedSender<tokio_tungstenite::tungstenite::Message>>,
+  // Liveness threshold for heartbeats/frames
+  heartbeat_liveness_threshold: Duration,
 }
 
 impl ManagedConnection {
@@ -47,10 +51,12 @@ impl ManagedConnection {
       is_healthy: Arc::new(AtomicBool::new(false)),
       last_ping: Arc::new(AtomicU64::new(0)),
       task_handle: None,
+  heartbeat_handle: None,
       message_sender,
       api_key: String::new(),
       access_token: String::new(),
       cmd_tx: None,
+      heartbeat_liveness_threshold: Duration::from_secs(10),
     }
   }
 
@@ -74,8 +80,18 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-    self.cmd_tx = ticker.command_sender();
+  self.cmd_tx = ticker.command_sender();
+    // Initialize last_ping to now and start heartbeat watcher
+    let now_sec = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_secs();
+    self.last_ping.store(now_sec as u64, Ordering::Relaxed);
     self.ticker = Some(ticker);
+    self.start_heartbeat_watcher();
+    // Set configured liveness threshold
+    self.heartbeat_liveness_threshold =
+      config.heartbeat_liveness_threshold;
     self.is_healthy.store(true, Ordering::Relaxed);
 
     // Update stats
@@ -86,6 +102,43 @@ impl ManagedConnection {
     }
 
     Ok(())
+  }
+
+  /// Start a background watcher that listens to raw frames and updates `last_ping`.
+  fn start_heartbeat_watcher(&mut self) {
+    // Drop existing watcher if any
+    if let Some(h) = self.heartbeat_handle.take() {
+      h.abort();
+    }
+    let Some(ticker) = self.ticker.as_ref() else { return; };
+    let mut rx = ticker.subscribe_raw_frames();
+    let last_ping = Arc::clone(&self.last_ping);
+    let id = self.id;
+    let handle = tokio::spawn(async move {
+      loop {
+        match rx.recv().await {
+          Ok(_frame) => {
+            let now = std::time::SystemTime::now()
+              .duration_since(std::time::UNIX_EPOCH)
+              .unwrap_or_default()
+              .as_secs();
+            last_ping.store(now as u64, Ordering::Relaxed);
+          }
+          Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+            log::debug!(
+              "Heartbeat watcher closed for connection {}",
+              id.to_index()
+            );
+            break;
+          }
+          Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+            // If lagging, just continue; we'll get a fresher frame soon
+            continue;
+          }
+        }
+      }
+    });
+    self.heartbeat_handle = Some(handle);
   }
 
   /// Connect with explicit raw_only flag
@@ -110,11 +163,21 @@ impl ManagedConnection {
     .map_err(|_| "Connection timeout".to_string())?
     .map_err(|e| format!("Connection failed: {}", e))?;
 
-    self.cmd_tx = ticker.command_sender();
+  self.cmd_tx = ticker.command_sender();
+    // Initialize last_ping to now and start heartbeat watcher
+    let now_sec = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_secs();
+    self.last_ping.store(now_sec as u64, std::sync::atomic::Ordering::Relaxed);
     self.ticker = Some(ticker);
+    self.start_heartbeat_watcher();
     self
       .is_healthy
       .store(true, std::sync::atomic::Ordering::Relaxed);
+    // Set configured liveness threshold
+    self.heartbeat_liveness_threshold =
+      config.heartbeat_liveness_threshold;
     {
       let mut stats = self.stats.write().await;
       stats.is_connected = true;
@@ -234,7 +297,9 @@ impl ManagedConnection {
       let message_sender = self.message_sender.clone();
       let stats = Arc::clone(&self.stats);
       let is_healthy = Arc::clone(&self.is_healthy);
+      let last_ping = Arc::clone(&self.last_ping);
       let connection_id = self.id;
+      let threshold = self.heartbeat_liveness_threshold;
 
       let handle = tokio::spawn(async move {
         Self::message_processing_loop(
@@ -243,6 +308,8 @@ impl ManagedConnection {
           stats,
           is_healthy,
           connection_id,
+          last_ping,
+          threshold,
         )
         .await;
       });
@@ -261,6 +328,8 @@ impl ManagedConnection {
     stats: Arc<RwLock<ConnectionStats>>,
     is_healthy: Arc<AtomicBool>,
     connection_id: ChannelId,
+    last_ping: Arc<AtomicU64>,
+    heartbeat_threshold: Duration,
   ) {
     let mut last_message_time = Instant::now();
     let mut last_stats_flush = Instant::now();
@@ -352,11 +421,24 @@ impl ManagedConnection {
           // Continue trying to receive messages
         }
         Err(_) => {
-          // Timeout - check if connection is still alive
-          if last_message_time.elapsed() > Duration::from_secs(60) {
+          // Timeout waiting for parsed messages; consult heartbeat/frames
+          let now_sec = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+          let last = last_ping.load(Ordering::Relaxed);
+          // If we've seen any frame within threshold, consider connection alive
+          if last > 0
+            && now_sec.saturating_sub(last) <= heartbeat_threshold.as_secs()
+          {
+            continue;
+          }
+          // Fallback to parsed message timer if heartbeat missed
+          if last_message_time.elapsed() > heartbeat_threshold {
             log::warn!(
-              "Connection {} timeout - no messages for 60s",
-              connection_id.to_index()
+              "Connection {} timeout - no frames/heartbeats within {:?}",
+              connection_id.to_index(),
+              heartbeat_threshold,
             );
             is_healthy.store(false, Ordering::Relaxed);
             break;

@@ -36,6 +36,7 @@ pub async fn main() -> Result<(), String> {
     reconnect_delay: Duration::from_secs(2),
     enable_dedicated_parsers: true, // Use dedicated parser tasks
     default_mode: Mode::Full,       // Full mode for maximum data
+    heartbeat_liveness_threshold: Duration::from_secs(10),
   };
 
   println!("🔧 Configuration:");

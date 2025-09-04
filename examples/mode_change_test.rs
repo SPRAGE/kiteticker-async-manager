@@ -36,6 +36,7 @@ async fn main() -> Result<(), String> {
     reconnect_delay: Duration::from_secs(2),
     enable_dedicated_parsers: true,
     default_mode: Mode::LTP,
+    heartbeat_liveness_threshold: Duration::from_secs(10),
   };
 
   println!("🔧 Starting manager...");

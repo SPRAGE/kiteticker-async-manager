@@ -33,6 +33,9 @@ pub struct KiteManagerConfig {
 
   /// Default subscription mode for new symbols
   pub default_mode: Mode,
+
+  /// Consider the websocket alive if a frame (including heartbeat) arrived within this duration
+  pub heartbeat_liveness_threshold: Duration,
 }
 
 impl Default for KiteManagerConfig {
@@ -48,6 +51,7 @@ impl Default for KiteManagerConfig {
       reconnect_delay: Duration::from_secs(2),
       enable_dedicated_parsers: true,
       default_mode: Mode::Quote,
+      heartbeat_liveness_threshold: Duration::from_secs(10),
     }
   }
 }

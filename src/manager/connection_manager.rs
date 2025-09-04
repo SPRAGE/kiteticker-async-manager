@@ -116,6 +116,13 @@ impl KiteTickerManagerBuilder {
     self.config.default_mode = mode;
     self
   }
+  pub fn heartbeat_liveness_threshold(
+    mut self,
+    d: std::time::Duration,
+  ) -> Self {
+    self.config.heartbeat_liveness_threshold = d;
+    self
+  }
   pub fn connection_buffer_size(mut self, sz: usize) -> Self {
     self.config.connection_buffer_size = sz;
     self
@@ -619,6 +626,10 @@ impl KiteTickerManager {
 
     // Stop all connections
     for connection in &mut self.connections {
+      if let Some(h) = connection.heartbeat_handle.take() {
+        h.abort();
+        let _ = h.await;
+      }
       if let Some(handle) = connection.task_handle.take() {
         handle.abort();
         let _ = handle.await;
