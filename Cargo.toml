@@ -1,7 +1,7 @@
 [package]
 authors = ["Kaushik Chakraborty <git@kaushikc.org>", "Shaun Pai <shauna.pai@gmail.com>"]
 name = "kiteticker-async-manager"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
