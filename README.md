@@ -21,6 +21,7 @@ High-performance async WebSocket client for the [Kite Connect API](https://kite.
 ## ✨ Key Features
 
 - **🚀 Multi-Connection Support** - Utilize all 3 allowed WebSocket connections (9,000 symbol capacity)
+- **🔑 Multi-API Support** - Manage multiple Kite Connect accounts simultaneously (18,000+ symbols)
 - **⚡ High Performance** - Dedicated parser tasks, optimized buffers, sub-microsecond latency
 - **🔄 Dynamic Subscriptions** - Add/remove symbols at runtime without reconnection
 - **📊 Load Balancing** - Automatic symbol distribution across connections
@@ -98,15 +99,58 @@ async fn main() -> Result<(), String> {
 }
 ```
 
+### Multi-API Manager (NEW!)
+
+Manage multiple Kite Connect accounts in a single manager:
+
+```rust
+use kiteticker_async_manager::{
+    MultiApiKiteTickerManager, 
+    DistributionStrategy, 
+    Mode,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), String> {
+    // Create multi-API manager
+    let mut manager = MultiApiKiteTickerManager::builder()
+        .add_api_key("account1", "api_key_1", "token_1")
+        .add_api_key("account2", "api_key_2", "token_2")
+        .max_connections_per_api(3)
+        .distribution_strategy(DistributionStrategy::RoundRobin)
+        .build();
+    
+    manager.start().await?;
+    
+    // Subscribe symbols (auto-distributed across API keys)
+    let symbols = vec![256265, 408065, 738561];
+    manager.subscribe_symbols(&symbols, Some(Mode::Quote)).await?;
+    
+    // Or assign to specific API key
+    manager.subscribe_symbols_to_api("account1", &symbols, Some(Mode::LTP)).await?;
+    
+    // Receive unified stream from all API keys
+    let mut unified = manager.get_unified_channel();
+    while let Ok((api_key_id, message)) = unified.recv().await {
+        println!("From {}: {:?}", api_key_id.0, message);
+    }
+    
+    Ok(())
+}
+```
+
+**[📖 Multi-API Guide](docs/guides/MULTI_API_GUIDE.md)** - Complete multi-API documentation
+
 ## 📊 Performance Comparison
 
-| **Feature** | **Single Connection** | **Multi-Connection Manager** | **Improvement** |
-|-------------|----------------------|------------------------------|-----------------|
-| **Max Symbols** | 3,000 | 9,000 | **3x capacity** |
-| **Throughput** | Limited by 1 connection | 3 parallel connections | **3x throughput** |
-| **Latency** | ~5-10µs | ~1-2µs | **5x faster** |
-| **Resilience** | Single point of failure | 3 independent connections | **High availability** |
-| **Dynamic Ops** | Manual reconnection | Runtime add/remove | **Zero downtime** |
+| **Feature** | **Single Connection** | **Multi-Connection Manager** | **Multi-API Manager** | **Improvement** |
+|-------------|----------------------|------------------------------|----------------------|-----------------|
+| **Max Symbols** | 3,000 | 9,000 | 18,000+ (9K × N APIs) | **6x+ capacity** |
+| **Max API Keys** | 1 | 1 | Unlimited | **Multi-account** |
+| **Throughput** | Limited by 1 connection | 3 parallel connections | 3 × N connections | **N × 3x throughput** |
+| **Latency** | ~5-10µs | ~1-2µs | ~1-2µs | **5x faster** |
+| **Resilience** | Single point of failure | 3 independent connections | Multi-account redundancy | **High availability** |
+| **Dynamic Ops** | Manual reconnection | Runtime add/remove | Runtime add/remove | **Zero downtime** |
 
 ## 🏗️ Architecture
 
@@ -137,7 +181,8 @@ async fn main() -> Result<(), String> {
 ## 📚 Documentation
 
 - **[📖 Getting Started](docs/guides/getting-started.md)** - Complete beginner's guide
-- **[🔧 API Reference](docs/api/)** - Detailed API documentation
+- **[� Multi-API Guide](docs/guides/MULTI_API_GUIDE.md)** - Manage multiple API keys (NEW!)
+- **[�🔧 API Reference](docs/api/)** - Detailed API documentation
 - **[📝 Examples](examples/)** - Practical code examples
 - **[🔄 Dynamic Subscriptions](docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)** - Runtime symbol management
 - **[⚡ Performance Guide](docs/guides/PERFORMANCE_IMPROVEMENTS.md)** - Optimization techniques
@@ -149,7 +194,10 @@ async fn main() -> Result<(), String> {
 - **[Portfolio Monitor](examples/basic/portfolio_monitor.rs)** - Track portfolio stocks
 - **[Runtime Subscriptions](examples/basic/runtime_subscription_example.rs)** - Dynamic symbol management
 
-### 🎯 Advanced Examples  
+### 🔑 Multi-API Examples
+- **[Multi-API Demo](examples/multi_api_demo.rs)** - Manage multiple Kite Connect accounts (NEW!)
+
+### 🚀 Advanced Examples
 - **[Dynamic Demo](examples/advanced/dynamic_subscription_demo.rs)** - Complete dynamic workflow
 - **[Manager Demo](examples/advanced/manager_demo.rs)** - Multi-connection setup
 - **[Market Scanner](examples/advanced/market_scanner.rs)** - High-volume scanning
