@@ -284,8 +284,10 @@ pub use models::{
 
 pub mod ticker;
 pub use manager::{
-  ChannelId, HealthSummary, KiteManagerConfig, KiteTickerManager,
-  KiteTickerManagerBuilder, ManagerStats,
+  ApiCredentials, ApiKeyId, ApiKeyStats, ChannelId, DistributionStrategy,
+  HealthSummary, KiteManagerConfig, KiteTickerManager,
+  KiteTickerManagerBuilder, ManagerStats, MultiApiConfig,
+  MultiApiKiteTickerManager, MultiApiKiteTickerManagerBuilder, MultiApiStats,
 };
 pub use ticker::{KiteTickerAsync, KiteTickerSubscriber};
 // Expose the raw 184-byte subscriber helper

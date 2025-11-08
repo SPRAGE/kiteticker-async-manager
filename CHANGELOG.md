@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-09
+
+### Added
+- **Multi-API Manager**: New `MultiApiKiteTickerManager` for managing multiple Kite Connect API credentials simultaneously
+  - Support for unlimited API keys (each with 3 connections = 9,000 symbols per API key)
+  - Round-robin and manual distribution strategies for symbol allocation
+  - Unified message stream with API key identification
+  - Per-API and aggregate statistics monitoring
+  - Backward compatible with existing single-API `KiteTickerManager`
+- **New Configuration Types**: `ApiKeyId`, `ApiCredentials`, `DistributionStrategy`, `MultiApiConfig`
+- **Statistics Types**: `ApiKeyStats` and `MultiApiStats` for comprehensive monitoring
+- **Builder Pattern**: `MultiApiKiteTickerManagerBuilder` for fluent API configuration
+- **Example**: Comprehensive `multi_api_demo.rs` demonstrating all multi-API features
+- **Documentation**: Complete multi-API guide at `docs/guides/MULTI_API_GUIDE.md`
+
+### Changed
+- Updated README with multi-API examples and performance comparison
+- Enhanced examples README with multi-API section
+- Added multi-API exports to public API
+
+### Performance
+- Linear scaling with number of API keys (18,000+ symbols with 2 API keys, 27,000+ with 3, etc.)
+- Zero overhead for single-API usage (existing manager unaffected)
+- Parallel processing across all connections
+
 ## [0.2.1] - 2025-08-24
 
 ### Changed
