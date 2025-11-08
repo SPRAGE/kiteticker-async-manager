@@ -12,6 +12,12 @@ Simple, focused examples perfect for getting started:
 - **[single_connection.rs](basic/single_connection.rs)** - Basic single WebSocket connection
 - **[portfolio_monitor.rs](basic/portfolio_monitor.rs)** - Monitor a portfolio of stocks
 
+### 🔑 Multi-API Examples
+
+Manage multiple Kite Connect accounts:
+
+- **[multi_api_demo.rs](multi_api_demo.rs)** - Multi-API manager with round-robin distribution (NEW!)
+
 ### 🎯 [Advanced Examples](advanced/)
 
 Complex scenarios and advanced features:
@@ -64,6 +70,20 @@ cargo run --example dynamic_subscription_demo
 
 # Multi-connection manager
 cargo run --example advanced/manager_demo
+```
+
+### Multi-API Examples
+
+```bash
+# Set multiple API credentials
+export KITE_API_KEY_1=your_api_key_1
+export KITE_ACCESS_TOKEN_1=your_token_1
+export KITE_API_KEY_2=your_api_key_2
+export KITE_ACCESS_TOKEN_2=your_token_2
+
+# Run multi-API demo
+cargo run --example multi_api_demo
+```
 
 ### Performance Examples
 
@@ -154,6 +174,7 @@ let config = KiteManagerConfig {
 | `single_connection` | 1 | 1-10 | Basic WebSocket | 🟢 Beginner |
 | `portfolio_monitor` | 1 | 10-50 | Portfolio tracking | 🟢 Beginner |
 | `runtime_subscription` | 3 | 50-100 | Dynamic management | 🟡 Intermediate |
+| `multi_api_demo` | 3×N | 9000×N | Multi-account | 🟡 Intermediate |
 | `dynamic_subscription_demo` | 3 | 100+ | Complete workflow | 🟡 Intermediate |
 | `manager_demo` | 3 | 200+ | Multi-connection | 🟡 Intermediate |
 | `market_scanner` | 3 | 1000+ | High volume | 🔴 Advanced |
@@ -218,6 +239,7 @@ cargo run --example basic/runtime_subscription_example
 ## 🔗 Additional Resources
 
 - **[Getting Started Guide](../docs/guides/getting-started.md)**
+- **[Multi-API Guide](../docs/guides/MULTI_API_GUIDE.md)** - Multi-account management (NEW!)
 - **[API Documentation](../docs/api/)**
 - **[Dynamic Subscription Guide](../docs/guides/DYNAMIC_SUBSCRIPTION_GUIDE.md)**
 - **[Performance Guide](../docs/guides/PERFORMANCE_IMPROVEMENTS.md)**

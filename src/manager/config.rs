@@ -108,3 +108,112 @@ impl ChannelId {
     vec![Self::Connection1, Self::Connection2, Self::Connection3]
   }
 }
+
+// ============================================================================
+// Multi-API Configuration Types
+// ============================================================================
+
+/// Unique identifier for an API key
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ApiKeyId(pub String);
+
+impl ApiKeyId {
+  pub fn new(id: impl Into<String>) -> Self {
+    Self(id.into())
+  }
+}
+
+impl From<&str> for ApiKeyId {
+  fn from(s: &str) -> Self {
+    Self(s.to_string())
+  }
+}
+
+impl From<String> for ApiKeyId {
+  fn from(s: String) -> Self {
+    Self(s)
+  }
+}
+
+/// API credentials for a single Kite Connect account
+#[derive(Debug, Clone)]
+pub struct ApiCredentials {
+  pub api_key: String,
+  pub access_token: String,
+}
+
+impl ApiCredentials {
+  pub fn new(api_key: impl Into<String>, access_token: impl Into<String>) -> Self {
+    Self {
+      api_key: api_key.into(),
+      access_token: access_token.into(),
+    }
+  }
+}
+
+/// Strategy for distributing symbols across multiple API keys
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DistributionStrategy {
+  /// Automatically distribute symbols across all API keys using round-robin
+  RoundRobin,
+  /// Manually assign symbols to specific API keys
+  Manual,
+}
+
+impl Default for DistributionStrategy {
+  fn default() -> Self {
+    Self::RoundRobin
+  }
+}
+
+/// Configuration for multi-API manager
+#[derive(Debug, Clone)]
+pub struct MultiApiConfig {
+  /// Base configuration for each API key's connections
+  pub base_config: KiteManagerConfig,
+  
+  /// Maximum connections per API key (Kite limit: 3)
+  pub max_connections_per_api: usize,
+  
+  /// Symbol distribution strategy
+  pub distribution_strategy: DistributionStrategy,
+  
+  /// Enable health monitoring across all API keys
+  pub enable_health_monitoring: bool,
+}
+
+impl Default for MultiApiConfig {
+  fn default() -> Self {
+    Self {
+      base_config: KiteManagerConfig::default(),
+      max_connections_per_api: 3,
+      distribution_strategy: DistributionStrategy::RoundRobin,
+      enable_health_monitoring: true,
+    }
+  }
+}
+
+/// Statistics for a single API key
+#[derive(Debug, Clone, Default)]
+pub struct ApiKeyStats {
+  pub api_key_id: String,
+  pub active_connections: usize,
+  pub total_symbols: usize,
+  pub total_messages_received: u64,
+  pub total_messages_parsed: u64,
+  pub total_errors: u64,
+  pub connection_stats: Vec<ConnectionStats>,
+}
+
+/// Aggregate statistics across all API keys
+#[derive(Debug, Clone, Default)]
+pub struct MultiApiStats {
+  pub total_api_keys: usize,
+  pub total_connections: usize,
+  pub total_symbols: usize,
+  pub total_messages_received: u64,
+  pub total_messages_parsed: u64,
+  pub total_errors: u64,
+  pub uptime: Duration,
+  pub per_api_stats: Vec<ApiKeyStats>,
+}
