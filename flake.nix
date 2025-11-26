@@ -8,13 +8,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-utils.url = "github:numtide/flake-utils";
-    mcp_rustdoc = {
-      url = "github:SPRAGE/mcp_rustdoc";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, fenix, flake-utils, mcp_rustdoc }:
+  outputs = { self, nixpkgs, fenix, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -52,9 +48,6 @@
             # Additional utilities
             git
             just
-            
-            # MCP Rustdoc binary
-            mcp_rustdoc.packages.${system}.default
           ];
 
           # Environment variables
@@ -69,9 +62,6 @@
             echo "Available targets:"
             rustup target list --installed 2>/dev/null || echo "  - x86_64-unknown-linux-gnu (default)"
             echo "  - wasm32-unknown-unknown"
-            echo ""
-            echo "Additional tools:"
-            echo "  rdocs-mcp                      # MCP server for Rustdoc"
             echo ""
             echo "Useful commands:"
             echo "  cargo build                    # Build the project"
