@@ -7,7 +7,9 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use smallvec::SmallVec;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -29,9 +31,21 @@ pub struct KiteTickerAsync {
   raw_tx: broadcast::Sender<Bytes>, // raw binary frames
   #[allow(dead_code)]
   raw_only: bool, // if true, skip parsing and emit raw frames as TickerMessage::Raw
+  // Unix seconds of the last inbound frame of ANY kind (Text/Binary/Ping/Pong/
+  // Close). Updated by the reader task; used by the connection pool to judge
+  // liveness so a market-idle socket kept warm by ping/pong stays healthy.
+  last_activity: Arc<AtomicU64>,
   writer_handle: Option<JoinHandle<()>>,
   reader_handle: Option<JoinHandle<()>>,
   parser_handle: Option<JoinHandle<()>>,
+}
+
+/// Current Unix time in whole seconds (saturating to 0 before the epoch).
+fn now_unix_secs() -> u64 {
+  SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_secs()
 }
 
 impl KiteTickerAsync {
@@ -91,12 +105,19 @@ impl KiteTickerAsync {
     // Use a bounded channel with try_send to provide lightweight backpressure under bursts.
     let (parse_tx, mut parse_rx) = mpsc::channel::<Message>(PARSE_CHANNEL_CAP);
 
+    // Liveness clock: any inbound frame (data, heartbeat, or Pong) bumps this.
+    let last_activity = Arc::new(AtomicU64::new(now_unix_secs()));
+
     // Reader: only forward messages into parse channel, avoid heavy work here
     let msg_sender_for_reader = msg_tx.clone();
+    let reader_activity = Arc::clone(&last_activity);
     let reader_handle = tokio::spawn(async move {
       while let Some(message) = read_half.next().await {
         match message {
           Ok(msg) => {
+            // Any inbound frame proves the socket is alive — refresh the clock
+            // before parsing so Pong/heartbeat frames count toward liveness.
+            reader_activity.store(now_unix_secs(), Ordering::Relaxed);
             // Forward to parser using non-blocking try_send; if channel is full, drop frame
             match parse_tx.try_send(msg) {
               Ok(_) => {}
@@ -150,6 +171,7 @@ impl KiteTickerAsync {
       msg_tx,
       raw_tx,
       raw_only,
+      last_activity,
       writer_handle: Some(writer_handle),
       reader_handle: Some(reader_handle),
       parser_handle: Some(parser_handle),
@@ -242,6 +264,14 @@ impl KiteTickerAsync {
     } else {
       Err("Connection is closed".to_string())
     }
+  }
+
+  /// Shared clock (Unix seconds) of the last inbound frame of any kind,
+  /// including `Pong` replies to keepalive pings. The connection pool uses this
+  /// to gauge liveness without depending on data (binary) frames, so a socket
+  /// with no market activity stays healthy as long as ping/pong is flowing.
+  pub fn last_activity(&self) -> Arc<AtomicU64> {
+    Arc::clone(&self.last_activity)
   }
 
   /// Get the current broadcast channel receiver count

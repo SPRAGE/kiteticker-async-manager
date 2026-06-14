@@ -20,7 +20,7 @@ pub struct ManagedConnection {
   pub is_healthy: Arc<AtomicBool>,
   pub last_ping: Arc<AtomicU64>, // Unix timestamp
   pub task_handle: Option<JoinHandle<()>>,
-  // Background watcher to update last_ping on any inbound frame (including heartbeats)
+  // Background task that sends periodic keepalive WS pings (see start_ping_task).
   pub heartbeat_handle: Option<JoinHandle<()>>,
   pub message_sender: mpsc::UnboundedSender<TickerMessage>,
   // Store credentials for dynamic operations
@@ -81,16 +81,15 @@ impl ManagedConnection {
     .map_err(|e| format!("Connection failed: {}", e))?;
 
     self.cmd_tx = ticker.command_sender();
-    // Initialize last_ping to now and start heartbeat watcher
-    let now_sec = std::time::SystemTime::now()
-      .duration_since(std::time::UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_secs();
-    self.last_ping.store(now_sec, Ordering::Relaxed);
+    // Liveness now follows the ticker's all-frame activity clock, refreshed by
+    // ANY inbound frame (including the Pong from our keepalive ping), so an idle
+    // market connection stays healthy instead of false-timing-out.
+    self.last_ping = ticker.last_activity();
     self.ticker = Some(ticker);
-    self.start_heartbeat_watcher();
-    // Set configured liveness threshold
+    // Set the configured liveness threshold, then start the keepalive ping task
+    // (its interval is derived from the threshold).
     self.heartbeat_liveness_threshold = config.heartbeat_liveness_threshold;
+    self.start_ping_task();
     self.is_healthy.store(true, Ordering::Relaxed);
 
     // Update stats
@@ -103,39 +102,41 @@ impl ManagedConnection {
     Ok(())
   }
 
-  /// Start a background watcher that listens to raw frames and updates `last_ping`.
-  fn start_heartbeat_watcher(&mut self) {
-    // Drop existing watcher if any
+  /// Start a background task that sends a WebSocket Ping at a fixed interval to
+  /// keep the connection warm when the market is idle. Kite replies with a Pong,
+  /// which (like any inbound frame) refreshes the ticker's activity clock and
+  /// stops the liveness check from falsely timing the connection out. The
+  /// interval is half the liveness threshold (min 2s) so a Pong always lands
+  /// well within the window.
+  fn start_ping_task(&mut self) {
+    // Drop existing task if any
     if let Some(h) = self.heartbeat_handle.take() {
       h.abort();
     }
-    let Some(ticker) = self.ticker.as_ref() else {
+    let Some(cmd_tx) = self.cmd_tx.clone() else {
       return;
     };
-    let mut rx = ticker.subscribe_raw_frames();
-    let last_ping = Arc::clone(&self.last_ping);
+    let interval =
+      (self.heartbeat_liveness_threshold / 2).max(Duration::from_secs(2));
     let id = self.id;
     let handle = tokio::spawn(async move {
+      let mut tick = tokio::time::interval(interval);
+      tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+      // Skip the immediate first tick — the socket was just opened.
+      tick.tick().await;
       loop {
-        match rx.recv().await {
-          Ok(_frame) => {
-            let now = std::time::SystemTime::now()
-              .duration_since(std::time::UNIX_EPOCH)
-              .unwrap_or_default()
-              .as_secs();
-            last_ping.store(now, Ordering::Relaxed);
-          }
-          Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-            log::debug!(
-              "Heartbeat watcher closed for connection {}",
-              id.to_index()
-            );
-            break;
-          }
-          Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-            // If lagging, just continue; we'll get a fresher frame soon
-            continue;
-          }
+        tick.tick().await;
+        if cmd_tx
+          .send(tokio_tungstenite::tungstenite::Message::Ping(
+            Default::default(),
+          ))
+          .is_err()
+        {
+          log::debug!(
+            "Ping task: connection {} command channel closed",
+            id.to_index()
+          );
+          break;
         }
       }
     });
@@ -165,21 +166,17 @@ impl ManagedConnection {
     .map_err(|e| format!("Connection failed: {}", e))?;
 
     self.cmd_tx = ticker.command_sender();
-    // Initialize last_ping to now and start heartbeat watcher
-    let now_sec = std::time::SystemTime::now()
-      .duration_since(std::time::UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_secs();
-    self
-      .last_ping
-      .store(now_sec, std::sync::atomic::Ordering::Relaxed);
+    // Liveness follows the ticker's all-frame activity clock (refreshed by ANY
+    // inbound frame, including the Pong from our keepalive ping).
+    self.last_ping = ticker.last_activity();
     self.ticker = Some(ticker);
-    self.start_heartbeat_watcher();
+    // Set the configured liveness threshold, then start the keepalive ping task
+    // (its interval is derived from the threshold).
+    self.heartbeat_liveness_threshold = config.heartbeat_liveness_threshold;
+    self.start_ping_task();
     self
       .is_healthy
       .store(true, std::sync::atomic::Ordering::Relaxed);
-    // Set configured liveness threshold
-    self.heartbeat_liveness_threshold = config.heartbeat_liveness_threshold;
     {
       let mut stats = self.stats.write().await;
       stats.is_connected = true;
